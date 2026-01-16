@@ -636,37 +636,19 @@ def _maybe_autoscroll_chat() -> None:
     if latest_ms <= last_scrolled_ms:
         return
 
-    # Best-effort DOM targeting: Streamlit's scroll container varies by version/layout.
-    # We try a few known containers and fall back to window scrolling.
     components.html(
         """
 <script>
 (() => {
   try {
     const doc = window.parent.document;
-    const candidates = [
-      doc.querySelector('section.main'),
-      doc.querySelector('div[data-testid="stMain"]'),
-      doc.querySelector('div[data-testid="stAppViewContainer"]'),
-      doc.querySelector('div.block-container'),
-      doc.scrollingElement,
-      doc.documentElement,
-      doc.body,
-    ].filter(Boolean);
-
-    const scrollToBottom = (el) => {
-      try {
-        el.scrollTop = el.scrollHeight;
-      } catch (e) {}
-      try {
-        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-      } catch (e) {}
-    };
-
-    // Delay a tick so the new chat DOM is actually in place.
     window.requestAnimationFrame(() => {
-      candidates.forEach(scrollToBottom);
-      try { window.parent.scrollTo({ top: doc.body.scrollHeight, behavior: "smooth" }); } catch (e) {}
+      // Scroll the newest message into view. If it's inside a scrollable Streamlit container,
+      // this will scroll that container rather than pushing the whole page down.
+      const anchor = doc.getElementById("chat-scroll-anchor");
+      if (anchor) {
+        try { anchor.scrollIntoView({ behavior: "smooth", block: "end" }); } catch (e) {}
+      }
     });
   } catch (e) {}
 })();
@@ -1274,12 +1256,14 @@ def _render_chat_panel(*, step_key: str, step_index: int, max_step_index: int, b
 
     left, right = st.columns([3, 2], gap="large")
     with left:
-        for msg in _chat_messages():
-            role = msg.get("role")
-            content = msg.get("content")
-            if role in ("assistant", "user") and isinstance(content, str):
-                with st.chat_message(role):
-                    st.markdown(content)
+        with st.container(height=560, border=True):
+            for msg in _chat_messages():
+                role = msg.get("role")
+                content = msg.get("content")
+                if role in ("assistant", "user") and isinstance(content, str):
+                    with st.chat_message(role):
+                        st.markdown(content)
+            st.markdown('<div id="chat-scroll-anchor"></div>', unsafe_allow_html=True)
 
         user_text = st.chat_input(_chat_input_placeholder(step_key))
         if user_text is not None:
@@ -2213,22 +2197,32 @@ def _render_leg_height_controls(book: PriceBook, disabled: bool) -> None:
         st.error("Requires Customer Lift (13' or taller).")
 
 def _render_doors_windows_controls(book: PriceBook, disabled: bool) -> None:
-    def _clamp_int(value: int, *, min_value: int, max_value: int) -> int:
-        return max(min_value, min(int(value), max_value))
+    def _clear_advanced_openings() -> None:
+        # Count-based mode should override explicit openings; clear them whenever qty changes.
+        st.session_state.openings = []
 
-    def _render_qty_controls(*, label: str, state_key: str, max_value: int, disabled: bool) -> None:
-        current = int(st.session_state.get(state_key) or 0)
-        left, mid, right = st.columns([1, 2, 1])
-        if left.button("−", key=f"{state_key}_dec", use_container_width=True, disabled=disabled or current <= 0):
-            st.session_state[state_key] = _clamp_int(current - 1, min_value=0, max_value=max_value)
-            st.session_state.openings = []
-            st.rerun()
-        mid.metric(label, current)
-        if right.button("+", key=f"{state_key}_inc", use_container_width=True, disabled=disabled or current >= max_value):
-            st.session_state[state_key] = _clamp_int(current + 1, min_value=0, max_value=max_value)
-            st.session_state.openings = []
-            st.rerun()
+    def _render_qty_stepper(
+        *,
+        label: str,
+        state_key: str,
+        max_value: int,
+        disabled: bool,
+        help_text: Optional[str] = None,
+    ) -> None:
+        st.number_input(
+            label,
+            min_value=0,
+            max_value=max_value,
+            step=1,
+            key=state_key,
+            disabled=disabled,
+            on_change=_clear_advanced_openings,
+            help=help_text,
+        )
 
+    st.markdown("**Doors**")
+    door_left, door_right = st.columns([3, 2], gap="medium")
+    with door_left:
     walk_in_labels = ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)
     if st.session_state.walk_in_door_type not in walk_in_labels:
         st.session_state.walk_in_door_type = "None"
@@ -2238,24 +2232,43 @@ def _render_doors_windows_controls(book: PriceBook, disabled: bool) -> None:
         key="walk_in_door_type",
         disabled=disabled,
     )
-    if not disabled and str(st.session_state.get("walk_in_door_type") or "None") == "None":
-        st.session_state.walk_in_door_count = 0
-    _render_qty_controls(label="Doors (qty)", state_key="walk_in_door_count", max_value=12, disabled=disabled or st.session_state.walk_in_door_type == "None")
+    with door_right:
+        if not disabled and str(st.session_state.get("walk_in_door_type") or "None") == "None":
+            st.session_state.walk_in_door_count = 0
+        _render_qty_stepper(
+            label="Door qty",
+            state_key="walk_in_door_count",
+            max_value=12,
+            disabled=disabled or st.session_state.walk_in_door_type == "None",
+        )
 
+    st.markdown("**Windows**")
+    win_left, win_right = st.columns([3, 2], gap="medium")
+    with win_left:
     window_labels = ["None"] + _available_accessory_labels(book, WINDOW_OPTIONS)
     if st.session_state.window_size not in window_labels:
         st.session_state.window_size = "None"
     st.selectbox("Window size", options=window_labels, key="window_size", disabled=disabled)
-    if not disabled and str(st.session_state.get("window_size") or "None") == "None":
-        st.session_state.window_count = 0
-    _render_qty_controls(label="Windows (qty)", state_key="window_count", max_value=24, disabled=disabled or st.session_state.window_size == "None")
+    with win_right:
+        if not disabled and str(st.session_state.get("window_size") or "None") == "None":
+            st.session_state.window_count = 0
+        _render_qty_stepper(
+            label="Window qty",
+            state_key="window_count",
+            max_value=24,
+            disabled=disabled or st.session_state.window_size == "None",
+        )
 
+    st.markdown("**Garage doors**")
+    g1, g2, g3 = st.columns([2, 2, 1], gap="medium")
+    with g1:
     st.selectbox(
         "Garage door type",
         options=["None", "Roll-up", "Frame-out"],
         key="garage_door_type",
         disabled=disabled,
     )
+    with g2:
     if st.session_state.garage_door_type == "Roll-up":
         roll_up_labels = _available_accessory_labels(book, ROLL_UP_DOOR_OPTIONS)
         if not roll_up_labels:
@@ -2272,15 +2285,21 @@ def _render_doors_windows_controls(book: PriceBook, disabled: bool) -> None:
     elif st.session_state.garage_door_type == "Frame-out":
         st.caption("Frame-out openings are priced per opening (when available).")
     else:
-        pass
-    if not disabled and str(st.session_state.get("garage_door_type") or "None") == "None":
-        st.session_state.garage_door_count = 0
-    _render_qty_controls(label="Garage doors (qty)", state_key="garage_door_count", max_value=4, disabled=disabled or st.session_state.garage_door_type == "None")
+            st.caption("")
+    with g3:
+        if not disabled and str(st.session_state.get("garage_door_type") or "None") == "None":
+            st.session_state.garage_door_count = 0
+        _render_qty_stepper(
+            label="Qty",
+            state_key="garage_door_count",
+            max_value=4,
+            disabled=disabled or st.session_state.garage_door_type == "None",
+        )
 
     if isinstance(st.session_state.get("openings"), list) and st.session_state.openings:
         st.caption("Note: you have advanced opening placement saved; this screen uses simple qty mode.")
         if st.button("Clear advanced openings", key="clear_advanced_openings", disabled=disabled, use_container_width=True):
-            st.session_state.openings = []
+        st.session_state.openings = []
             st.session_state.opening_seq = int(st.session_state.get("opening_seq") or 1)
             st.rerun()
 
