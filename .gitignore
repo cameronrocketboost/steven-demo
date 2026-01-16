@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+
+# Streamlit
+.streamlit/
+secrets.toml
+
+# Local configs / secrets
+config.json
+*.local.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Cursor / tooling
+.cursor/
+
+# Generated artifacts (this repo)
+out/
+_tmp_extracted_images/
+_repaired/
+_tmp_render_test.png
+leads/leads.jsonl
+Screenshots/
+

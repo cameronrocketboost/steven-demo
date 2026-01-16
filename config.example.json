@@ -1,0 +1,13 @@
+{
+  "mistral_api_key": "SET_ME",
+  "ocr": {
+    "endpoint": "https://api.mistral.ai/v1/ocr",
+    "model": "mistral-ocr-latest"
+  },
+  "text_model": "mistral-small-latest",
+  "input_dir": "/Users/cameron/STEVEN DEMO",
+  "output_dir": "/Users/cameron/STEVEN DEMO/out",
+  "max_pages": null
+}
+
+
