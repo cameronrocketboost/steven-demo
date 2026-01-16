@@ -18,6 +18,7 @@ coverage.xml
 .venv/
 venv/
 env/
+.env
 .env/
 
 # Streamlit
@@ -38,10 +39,15 @@ Thumbs.db
 .cursor/
 
 # Generated artifacts (this repo)
-out/
+# NOTE: Use a root-anchored ignore so we don't accidentally ignore `pricebooks/out/`
+/out/
 _tmp_extracted_images/
 _repaired/
 _tmp_render_test.png
 leads/leads.jsonl
 Screenshots/
+
+# Allow normalized inputs needed for Streamlit Cloud
+!pricebooks/out/
+!pricebooks/out/**
 
