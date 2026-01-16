@@ -2213,6 +2213,22 @@ def _render_leg_height_controls(book: PriceBook, disabled: bool) -> None:
         st.error("Requires Customer Lift (13' or taller).")
 
 def _render_doors_windows_controls(book: PriceBook, disabled: bool) -> None:
+    def _clamp_int(value: int, *, min_value: int, max_value: int) -> int:
+        return max(min_value, min(int(value), max_value))
+
+    def _render_qty_controls(*, label: str, state_key: str, max_value: int, disabled: bool) -> None:
+        current = int(st.session_state.get(state_key) or 0)
+        left, mid, right = st.columns([1, 2, 1])
+        if left.button("−", key=f"{state_key}_dec", use_container_width=True, disabled=disabled or current <= 0):
+            st.session_state[state_key] = _clamp_int(current - 1, min_value=0, max_value=max_value)
+            st.session_state.openings = []
+            st.rerun()
+        mid.metric(label, current)
+        if right.button("+", key=f"{state_key}_inc", use_container_width=True, disabled=disabled or current >= max_value):
+            st.session_state[state_key] = _clamp_int(current + 1, min_value=0, max_value=max_value)
+            st.session_state.openings = []
+            st.rerun()
+
     walk_in_labels = ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)
     if st.session_state.walk_in_door_type not in walk_in_labels:
         st.session_state.walk_in_door_type = "None"
@@ -2222,12 +2238,17 @@ def _render_doors_windows_controls(book: PriceBook, disabled: bool) -> None:
         key="walk_in_door_type",
         disabled=disabled,
     )
-    st.caption("For accurate drawings + line items, add individual openings with wall + offset below.")
+    if not disabled and str(st.session_state.get("walk_in_door_type") or "None") == "None":
+        st.session_state.walk_in_door_count = 0
+    _render_qty_controls(label="Doors (qty)", state_key="walk_in_door_count", max_value=12, disabled=disabled or st.session_state.walk_in_door_type == "None")
 
     window_labels = ["None"] + _available_accessory_labels(book, WINDOW_OPTIONS)
     if st.session_state.window_size not in window_labels:
         st.session_state.window_size = "None"
     st.selectbox("Window size", options=window_labels, key="window_size", disabled=disabled)
+    if not disabled and str(st.session_state.get("window_size") or "None") == "None":
+        st.session_state.window_count = 0
+    _render_qty_controls(label="Windows (qty)", state_key="window_count", max_value=24, disabled=disabled or st.session_state.window_size == "None")
 
     st.selectbox(
         "Garage door type",
@@ -2252,95 +2273,16 @@ def _render_doors_windows_controls(book: PriceBook, disabled: bool) -> None:
         st.caption("Frame-out openings are priced per opening (when available).")
     else:
         pass
+    if not disabled and str(st.session_state.get("garage_door_type") or "None") == "None":
+        st.session_state.garage_door_count = 0
+    _render_qty_controls(label="Garage doors (qty)", state_key="garage_door_count", max_value=4, disabled=disabled or st.session_state.garage_door_type == "None")
 
-    # Explicit openings editor (wall + offset)
-    if "openings" not in st.session_state or not isinstance(st.session_state.get("openings"), list):
-        st.session_state.openings = []
-    if "opening_seq" not in st.session_state:
-        st.session_state.opening_seq = 1
-
-    c1, c2, c3, c4 = st.columns([1, 1, 1, 2])
-    add_disabled = disabled
-    if c1.button("Add Door", use_container_width=True, disabled=add_disabled):
-        st.session_state.openings.append(
-            {"id": int(st.session_state.opening_seq), "kind": "door", "side": "front", "offset_ft": 0}
-        )
-        st.session_state.opening_seq = int(st.session_state.opening_seq) + 1
-        st.rerun()
-    if c2.button("Add Window", use_container_width=True, disabled=add_disabled):
-        st.session_state.openings.append(
-            {"id": int(st.session_state.opening_seq), "kind": "window", "side": "right", "offset_ft": 0}
-        )
-        st.session_state.opening_seq = int(st.session_state.opening_seq) + 1
-        st.rerun()
-    if c3.button("Add Garage", use_container_width=True, disabled=add_disabled):
-        if st.session_state.get("garage_door_type") == "None":
-            st.warning("Pick a garage door type first (Roll-up or Frame-out).")
-        else:
-            st.session_state.openings.append(
-                {"id": int(st.session_state.opening_seq), "kind": "garage", "side": "front", "offset_ft": 0}
-            )
-            st.session_state.opening_seq = int(st.session_state.opening_seq) + 1
+    if isinstance(st.session_state.get("openings"), list) and st.session_state.openings:
+        st.caption("Note: you have advanced opening placement saved; this screen uses simple qty mode.")
+        if st.button("Clear advanced openings", key="clear_advanced_openings", disabled=disabled, use_container_width=True):
+            st.session_state.openings = []
+            st.session_state.opening_seq = int(st.session_state.get("opening_seq") or 1)
             st.rerun()
-
-    if not st.session_state.openings:
-        st.info("No openings added yet.")
-        return
-
-    sides = ["front", "back", "left", "right"]
-    for idx, row in enumerate(list(st.session_state.openings)):
-        if not isinstance(row, dict):
-            continue
-        oid = int(row.get("id") or (idx + 1))
-        with st.expander(f"Opening #{oid}", expanded=False):
-            r1, r2, r3, r4 = st.columns([1, 1, 1, 1])
-            kind = r1.selectbox(
-                "Type",
-                options=["door", "window", "garage"],
-                index=["door", "window", "garage"].index(str(row.get("kind") or "door")),
-                key=f"opening_{oid}_kind",
-                disabled=disabled,
-            )
-            side = r2.selectbox(
-                "Wall",
-                options=sides,
-                index=sides.index(str(row.get("side") or "front")) if str(row.get("side") or "front") in sides else 0,
-                key=f"opening_{oid}_side",
-                disabled=disabled,
-            )
-            wall_ft = int(st.session_state.get("width_ft") or 0) if side in ("front", "back") else int(st.session_state.get("length_ft") or 0)
-            max_offset = max(0, wall_ft)
-            offset_default = min(int(row.get("offset_ft") or 0), max_offset)
-            offset_ft = r3.number_input(
-                "Offset (ft)",
-                min_value=0,
-                max_value=max_offset,
-                step=1,
-                value=offset_default,
-                key=f"opening_{oid}_offset",
-                disabled=disabled,
-            )
-            if r4.button("Remove", key=f"opening_{oid}_remove", use_container_width=True, disabled=disabled):
-                st.session_state.openings = [o for o in st.session_state.openings if not (isinstance(o, dict) and int(o.get("id") or -1) == oid)]
-                st.rerun()
-
-            # Persist edits back into the row
-            row["kind"] = str(kind)
-            row["side"] = str(side)
-            row["offset_ft"] = int(offset_ft)
-
-            # Show derived sizes (v1)
-            if str(kind) == "window":
-                w_ft, h_ft = _parse_window_size_ft(str(st.session_state.get("window_size") or ""))
-                st.caption(f"Drawn as approx **{w_ft}x{h_ft} ft** (from window size).")
-            elif str(kind) == "garage":
-                gw_ft, gh_ft = _parse_garage_size_ft(str(st.session_state.get("garage_door_size") or ""))
-                st.caption(f"Drawn as **{gw_ft}x{gh_ft} ft** (from garage door size).")
-            else:
-                st.caption("Drawn as **3x7 ft** walk-in door.")
-
-        # Write back the edited row
-        st.session_state.openings[idx] = row
 
 def _render_options_controls(book: PriceBook, disabled: bool) -> None:
     st.checkbox("Ground certification", key="include_ground_certification", disabled=disabled)
