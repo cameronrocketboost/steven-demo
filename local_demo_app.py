@@ -2223,15 +2223,15 @@ def _render_doors_windows_controls(book: PriceBook, disabled: bool) -> None:
     st.markdown("**Doors**")
     door_left, door_right = st.columns([3, 2], gap="medium")
     with door_left:
-    walk_in_labels = ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)
-    if st.session_state.walk_in_door_type not in walk_in_labels:
-        st.session_state.walk_in_door_type = "None"
-    st.selectbox(
-        "Walk-in door type",
-        options=walk_in_labels,
-        key="walk_in_door_type",
-        disabled=disabled,
-    )
+        walk_in_labels = ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)
+        if st.session_state.walk_in_door_type not in walk_in_labels:
+            st.session_state.walk_in_door_type = "None"
+        st.selectbox(
+            "Walk-in door type",
+            options=walk_in_labels,
+            key="walk_in_door_type",
+            disabled=disabled,
+        )
     with door_right:
         if not disabled and str(st.session_state.get("walk_in_door_type") or "None") == "None":
             st.session_state.walk_in_door_count = 0
@@ -2245,10 +2245,10 @@ def _render_doors_windows_controls(book: PriceBook, disabled: bool) -> None:
     st.markdown("**Windows**")
     win_left, win_right = st.columns([3, 2], gap="medium")
     with win_left:
-    window_labels = ["None"] + _available_accessory_labels(book, WINDOW_OPTIONS)
-    if st.session_state.window_size not in window_labels:
-        st.session_state.window_size = "None"
-    st.selectbox("Window size", options=window_labels, key="window_size", disabled=disabled)
+        window_labels = ["None"] + _available_accessory_labels(book, WINDOW_OPTIONS)
+        if st.session_state.window_size not in window_labels:
+            st.session_state.window_size = "None"
+        st.selectbox("Window size", options=window_labels, key="window_size", disabled=disabled)
     with win_right:
         if not disabled and str(st.session_state.get("window_size") or "None") == "None":
             st.session_state.window_count = 0
@@ -2262,29 +2262,29 @@ def _render_doors_windows_controls(book: PriceBook, disabled: bool) -> None:
     st.markdown("**Garage doors**")
     g1, g2, g3 = st.columns([2, 2, 1], gap="medium")
     with g1:
-    st.selectbox(
-        "Garage door type",
-        options=["None", "Roll-up", "Frame-out"],
-        key="garage_door_type",
-        disabled=disabled,
-    )
+        st.selectbox(
+            "Garage door type",
+            options=["None", "Roll-up", "Frame-out"],
+            key="garage_door_type",
+            disabled=disabled,
+        )
     with g2:
-    if st.session_state.garage_door_type == "Roll-up":
-        roll_up_labels = _available_accessory_labels(book, ROLL_UP_DOOR_OPTIONS)
-        if not roll_up_labels:
-            st.warning("No roll-up door pricing found in this pricebook.")
+        if st.session_state.garage_door_type == "Roll-up":
+            roll_up_labels = _available_accessory_labels(book, ROLL_UP_DOOR_OPTIONS)
+            if not roll_up_labels:
+                st.warning("No roll-up door pricing found in this pricebook.")
+            else:
+                if st.session_state.garage_door_size not in roll_up_labels:
+                    st.session_state.garage_door_size = roll_up_labels[0]
+                st.selectbox(
+                    "Roll-up door size",
+                    options=roll_up_labels,
+                    key="garage_door_size",
+                    disabled=disabled,
+                )
+        elif st.session_state.garage_door_type == "Frame-out":
+            st.caption("Frame-out openings are priced per opening (when available).")
         else:
-            if st.session_state.garage_door_size not in roll_up_labels:
-                st.session_state.garage_door_size = roll_up_labels[0]
-            st.selectbox(
-                "Roll-up door size",
-                options=roll_up_labels,
-                key="garage_door_size",
-                disabled=disabled,
-            )
-    elif st.session_state.garage_door_type == "Frame-out":
-        st.caption("Frame-out openings are priced per opening (when available).")
-    else:
             st.caption("")
     with g3:
         if not disabled and str(st.session_state.get("garage_door_type") or "None") == "None":
@@ -2299,7 +2299,7 @@ def _render_doors_windows_controls(book: PriceBook, disabled: bool) -> None:
     if isinstance(st.session_state.get("openings"), list) and st.session_state.openings:
         st.caption("Note: you have advanced opening placement saved; this screen uses simple qty mode.")
         if st.button("Clear advanced openings", key="clear_advanced_openings", disabled=disabled, use_container_width=True):
-        st.session_state.openings = []
+            st.session_state.openings = []
             st.session_state.opening_seq = int(st.session_state.get("opening_seq") or 1)
             st.rerun()
 
