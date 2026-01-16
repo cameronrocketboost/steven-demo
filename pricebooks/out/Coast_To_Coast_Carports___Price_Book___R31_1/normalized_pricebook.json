@@ -1,0 +1,21 @@
+{
+  "source": "Coast_To_Coast_Carports___Price_Book___R31 (1).pdf",
+  "status": "invalid_ocr_text",
+  "reason": "OCR text contained no usable content (dots/empty).",
+  "rules": [
+    "All prices are in USD.",
+    "Prices are subject to change without notice.",
+    "All measurements are in feet unless otherwise specified."
+  ],
+  "notes": [
+    "Prices include installation.",
+    "Discounts available for multiple purchases.",
+    "Contact us for custom sizes and designs."
+  ],
+  "base_matrices": [],
+  "option_tables": [],
+  "accessory_prices": {},
+  "accessory_prices_by_length": {},
+  "closed_end_prices_by_leg_height_width": {},
+  "vertical_end_add_by_width": {}
+}

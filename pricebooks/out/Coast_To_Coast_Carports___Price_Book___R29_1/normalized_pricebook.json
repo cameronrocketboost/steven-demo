@@ -1,0 +1,2475 @@
+{
+  "source": "Coast_To_Coast_Carports___Price_Book___R29 (1).pdf",
+  "status": "ok",
+  "rules": [
+    "NOTE: UNLESS MANUFACTURED, REFER TO NO LABEL IF FERM/INCL. PURCHASE. REFER TO OTHER SITE, SOLD ONLY. THIS REFER TO NO REFER TO MANUFACTURER.",
+    "NOTE: Vertical Buildings Are 1' Shorter Than Horizontal.",
+    "NOTE: If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "NOTE: Site-Specific drawings required on 13' or taller at additional cost.",
+    "*NOTE: Customer must provide lift on 13' or taller buildings.",
+    "FRAME OUTS ON SIDE WALL PRICING ( Must Close Sides First)",
+    "End Frame outs For Buildings 32' Wide And Wider",
+    "NOTE: Customer will need to add fees for drawings and freight on bigger buildings. Customer is also responsible for providing the proper lift (Reach Lift) to ensure a safe and efficient install.",
+    "NOTE: If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "NOTE: If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "NOTE: Site-Specific drawings required on 12' or taller at additional cost.",
+    "NOTE: Vertical Roof Option available in A-FRAME Style Carports only",
+    "\u2605SNOW LOAD 80 Lbs & 90 Lbs Must Purchase Vertical roof & 60 Lbs building.",
+    "& Lift Required.",
+    "NOTE: Site-Specific drawings required on 13' or taller at additional cost.",
+    "Customer must provide lift on 13' or taller buildings.",
+    "If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "Site-Specific drawings required on 13' or taller at additional cost.",
+    "Rent to Own Available Only In Participating States, and Participating Dealerships",
+    "Prices may vary by area.",
+    "Prices are subject to change without notice",
+    "Coast to Coast Carports is not responsible for impenetrable stony ground.",
+    "NOTE: 13' or taller must provide lift.",
+    "Site-Specific drawings required on 13' or taller at additional cost.",
+    "Building must be vertical and fully enclosed in order to get Gambrel Style Barn. Customer is also responsible for providing the proper lift (Reach Lift) to ensure a safe and efficient install.",
+    "If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "Site-Specific drawings required on 13\" or taller at additional cost.",
+    "Rent to Own Available Only In Participating States, and Participating Dealerships.",
+    "Coast To Coast Carports, Inc., strongly recommends a vertical roof on all buildings over 36' long.",
+    "Waiver required on warranty and leaks on horizontal roofs over 36' long",
+    "Coast To Coast Carports is not responsible for impenetrable, rocky ground",
+    "Rent to Own Available Only In Participating States, and Participating Dealerships",
+    "Revised 8-2023",
+    "Pricing for: ID, MT, UT, WY, OR, WA, NV, CO(NW)"
+  ],
+  "notes": [
+    "NOTE: UNLESS MANUFACTURED, REFER TO NO LABEL IF FERM/INCL. PURCHASE. REFER TO OTHER SITE, SOLD ONLY. THIS REFER TO NO REFER TO MANUFACTURER.",
+    "NOTE: Vertical Buildings Are 1' Shorter Than Horizontal.",
+    "NOTE: If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "NOTE: Site-Specific drawings required on 13' or taller at additional cost.",
+    "*NOTE: Customer must provide lift on 13' or taller buildings.",
+    "NOTE: Site-Specific drawings required on 13' or taller at additional cost.",
+    "NOTE: Customer must provide lift on 13' or taller buildings.",
+    "Prices may vary by area.",
+    "Prices are subject to change without notice",
+    "To create a building length greater than 51', two or more buildings may be attached for $120.00 per attachment.",
+    "NOTE: If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "NOTE: Site-Specific drawings required on 13' or taller at additional cost.",
+    "Rent to Own Available Only In Participating States, and Participating Dealerships",
+    "NOTE: If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "NOTE: Customer will need to add fees for drawings and freight on bigger buildings. Customer is also responsible for providing the proper lift (Reach Lift) to ensure a safe and efficient install.",
+    "Rent to Own Available Only In Participating States, and Participating Dealerships",
+    "If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "Customer will need to add fees for drawings and freight on bigger buildings. Customer is also responsible for providing the proper lift (Reach Lift) to ensure a safe and efficient install.",
+    "Rent to Own Available Only In Participating States, and Participating Dealerships",
+    "If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "Site-Specific drawings required on 13' or taller at additional cost.",
+    "If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "Site-Specific drawings required on 13' or taller at additional cost.",
+    "ALL PACKAGES COME IN 2\u00bd\" 14 GAUGE AND INCLUDES 6 MOBILE HOME ANCHORS",
+    "NOTE: Coast to Coast Carports, Inc. is not responsible for impenetrable rocky ground.",
+    "Pricing includes arched cut ends, plus 1 panel on each side with framed openings on each side as follows: 21' - 2 openings, 26' - 2 openings, 31' - 3 openings, 36' - 3 openings, 41' - 4 openings",
+    "STANDARD FEATURES\n* 14 gauge\n* 10' legs\n* Welded center braces\n* Double baserails and legs\n* 3' braces\n* 4 foot on center or less for added rigidity and strength, & either concrete, or rebar & mobile home anchors included.",
+    "LEG POSTS AND BASERAILS DOUBLED",
+    "NOTE: 13' or taller must provide lift.",
+    "Lift Required",
+    "If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "Site-Specific drawings required on 13\" or taller at additional cost.",
+    "Rent to Own Available Only In Participating States, and Participating Dealerships.",
+    "If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "Site-Specific drawings required on 13\" or taller at additional cost.",
+    "Rent to Own Available Only In Participating States, and Participating Dealerships",
+    "If you are needing special drawings or wet stamped drawings for your building, there will be an additional charge.",
+    "Rent to Own Available Only In Participating States, and Participating Dealerships",
+    "MasterCard",
+    "VISA",
+    "DISCOVER",
+    "REDEEMABLE",
+    "CUSTOMERS",
+    "INSURANCE"
+  ],
+  "base_matrices": [
+    {
+      "title": "VERTICAL ROOF STYLE",
+      "gauge": 14,
+      "widths_ft": [
+        12,
+        18,
+        20,
+        22,
+        24
+      ],
+      "lengths_ft": [
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,
+        50
+      ],
+      "entries": [
+        {
+          "width_ft": 12,
+          "length_ft": 20,
+          "price_usd": 2895
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 25,
+          "price_usd": 3495
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 30,
+          "price_usd": 3995
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 35,
+          "price_usd": 4595
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 40,
+          "price_usd": 4995
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 45,
+          "price_usd": 5595
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 50,
+          "price_usd": 6195
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 20,
+          "price_usd": 3395
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 25,
+          "price_usd": 3995
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 30,
+          "price_usd": 4595
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 35,
+          "price_usd": 5095
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 40,
+          "price_usd": 5595
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 45,
+          "price_usd": 6195
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 50,
+          "price_usd": 6795
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 20,
+          "price_usd": 3595
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 25,
+          "price_usd": 4195
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 30,
+          "price_usd": 4795
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 35,
+          "price_usd": 5395
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 40,
+          "price_usd": 6195
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 45,
+          "price_usd": 6895
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 50,
+          "price_usd": 7595
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 20,
+          "price_usd": 3995
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 25,
+          "price_usd": 4595
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 30,
+          "price_usd": 5295
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 35,
+          "price_usd": 5995
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 40,
+          "price_usd": 6795
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 45,
+          "price_usd": 7495
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 50,
+          "price_usd": 8195
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 20,
+          "price_usd": 4195
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 25,
+          "price_usd": 4995
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 30,
+          "price_usd": 5795
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 35,
+          "price_usd": 6495
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 40,
+          "price_usd": 7195
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 45,
+          "price_usd": 8195
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 50,
+          "price_usd": 8995
+        }
+      ]
+    },
+    {
+      "title": "A-FRAME STYLE",
+      "gauge": 14,
+      "widths_ft": [
+        12,
+        18,
+        20,
+        22,
+        24
+      ],
+      "lengths_ft": [
+        21,
+        26,
+        31,
+        36
+      ],
+      "entries": [
+        {
+          "width_ft": 12,
+          "length_ft": 21,
+          "price_usd": 2695
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 26,
+          "price_usd": 2895
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 31,
+          "price_usd": 3395
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 36,
+          "price_usd": 3895
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 21,
+          "price_usd": 2895
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 26,
+          "price_usd": 3395
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 31,
+          "price_usd": 3895
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 36,
+          "price_usd": 4195
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 21,
+          "price_usd": 3295
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 26,
+          "price_usd": 3595
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 31,
+          "price_usd": 4195
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 36,
+          "price_usd": 4695
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 21,
+          "price_usd": 3495
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 26,
+          "price_usd": 4095
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 31,
+          "price_usd": 4595
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 36,
+          "price_usd": 5195
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 21,
+          "price_usd": 3895
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 26,
+          "price_usd": 4395
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 31,
+          "price_usd": 5095
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 36,
+          "price_usd": 5795
+        }
+      ]
+    },
+    {
+      "title": "REGULAR STYLE",
+      "gauge": 14,
+      "widths_ft": [
+        12,
+        18,
+        20,
+        22,
+        24
+      ],
+      "lengths_ft": [
+        21,
+        26,
+        31,
+        36
+      ],
+      "entries": [
+        {
+          "width_ft": 12,
+          "length_ft": 21,
+          "price_usd": 2595
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 26,
+          "price_usd": 2795
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 31,
+          "price_usd": 3195
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 36,
+          "price_usd": 3495
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 21,
+          "price_usd": 2795
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 26,
+          "price_usd": 3295
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 31,
+          "price_usd": 3595
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 36,
+          "price_usd": 4095
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 21,
+          "price_usd": 3195
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 26,
+          "price_usd": 3495
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 31,
+          "price_usd": 3995
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 36,
+          "price_usd": 4395
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 21,
+          "price_usd": 3395
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 26,
+          "price_usd": 3895
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 31,
+          "price_usd": 4395
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 36,
+          "price_usd": 4995
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 21,
+          "price_usd": 3595
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 26,
+          "price_usd": 4195
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 31,
+          "price_usd": 4995
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 36,
+          "price_usd": 5595
+        }
+      ]
+    },
+    {
+      "title": "CERTIFIED TRIPLE WIDE CARPORTS 40 Lbs PSF",
+      "gauge": 14,
+      "widths_ft": [
+        26,
+        28,
+        30
+      ],
+      "lengths_ft": [
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,
+        50
+      ],
+      "entries": [
+        {
+          "width_ft": 26,
+          "length_ft": 20,
+          "price_usd": 5295
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 25,
+          "price_usd": 5995
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 30,
+          "price_usd": 6995
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 35,
+          "price_usd": 7995
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 40,
+          "price_usd": 8895
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 45,
+          "price_usd": 9795
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 50,
+          "price_usd": 10595
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 20,
+          "price_usd": 5595
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 25,
+          "price_usd": 6395
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 30,
+          "price_usd": 7195
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 35,
+          "price_usd": 8295
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 40,
+          "price_usd": 9195
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 45,
+          "price_usd": 10095
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 50,
+          "price_usd": 11095
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 20,
+          "price_usd": 5695
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 25,
+          "price_usd": 6495
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 30,
+          "price_usd": 7595
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 35,
+          "price_usd": 8595
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 40,
+          "price_usd": 9595
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 45,
+          "price_usd": 10595
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 50,
+          "price_usd": 11395
+        }
+      ]
+    },
+    {
+      "title": "A-FRAME STYLE",
+      "gauge": 14,
+      "widths_ft": [
+        26,
+        28,
+        30
+      ],
+      "lengths_ft": [
+        21,
+        26,
+        31,
+        36
+      ],
+      "entries": [
+        {
+          "width_ft": 26,
+          "length_ft": 21,
+          "price_usd": 4995
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 26,
+          "price_usd": 5595
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 31,
+          "price_usd": 6395
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 36,
+          "price_usd": 7195
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 21,
+          "price_usd": 5295
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 26,
+          "price_usd": 5995
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 31,
+          "price_usd": 6795
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 36,
+          "price_usd": 7595
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 21,
+          "price_usd": 5395
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 26,
+          "price_usd": 6195
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 31,
+          "price_usd": 6995
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 36,
+          "price_usd": 7995
+        }
+      ]
+    },
+    {
+      "title": "REGULAR STYLE",
+      "gauge": 14,
+      "widths_ft": [
+        26,
+        28,
+        30
+      ],
+      "lengths_ft": [
+        21,
+        26,
+        31,
+        36
+      ],
+      "entries": [
+        {
+          "width_ft": 26,
+          "length_ft": 21,
+          "price_usd": 4695
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 26,
+          "price_usd": 5295
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 31,
+          "price_usd": 6195
+        },
+        {
+          "width_ft": 26,
+          "length_ft": 36,
+          "price_usd": 6995
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 21,
+          "price_usd": 4995
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 26,
+          "price_usd": 5695
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 31,
+          "price_usd": 6395
+        },
+        {
+          "width_ft": 28,
+          "length_ft": 36,
+          "price_usd": 7195
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 21,
+          "price_usd": 5095
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 26,
+          "price_usd": 5795
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 31,
+          "price_usd": 6795
+        },
+        {
+          "width_ft": 30,
+          "length_ft": 36,
+          "price_usd": 7595
+        }
+      ]
+    },
+    {
+      "title": "Wind and Snow Load",
+      "gauge": 14,
+      "widths_ft": [
+        32,
+        34,
+        36,
+        38,
+        40
+      ],
+      "lengths_ft": [
+        30,
+        35,
+        40,
+        45,
+        50
+      ],
+      "entries": [
+        {
+          "width_ft": 32,
+          "length_ft": 30,
+          "price_usd": 10095
+        },
+        {
+          "width_ft": 32,
+          "length_ft": 35,
+          "price_usd": 11395
+        },
+        {
+          "width_ft": 32,
+          "length_ft": 40,
+          "price_usd": 12795
+        },
+        {
+          "width_ft": 32,
+          "length_ft": 45,
+          "price_usd": 14295
+        },
+        {
+          "width_ft": 32,
+          "length_ft": 50,
+          "price_usd": 15895
+        },
+        {
+          "width_ft": 34,
+          "length_ft": 30,
+          "price_usd": 10595
+        },
+        {
+          "width_ft": 34,
+          "length_ft": 35,
+          "price_usd": 11995
+        },
+        {
+          "width_ft": 34,
+          "length_ft": 40,
+          "price_usd": 13295
+        },
+        {
+          "width_ft": 34,
+          "length_ft": 45,
+          "price_usd": 15295
+        },
+        {
+          "width_ft": 34,
+          "length_ft": 50,
+          "price_usd": 16995
+        },
+        {
+          "width_ft": 36,
+          "length_ft": 30,
+          "price_usd": 11195
+        },
+        {
+          "width_ft": 36,
+          "length_ft": 35,
+          "price_usd": 12495
+        },
+        {
+          "width_ft": 36,
+          "length_ft": 40,
+          "price_usd": 14295
+        },
+        {
+          "width_ft": 36,
+          "length_ft": 45,
+          "price_usd": 16295
+        },
+        {
+          "width_ft": 36,
+          "length_ft": 50,
+          "price_usd": 17995
+        },
+        {
+          "width_ft": 38,
+          "length_ft": 30,
+          "price_usd": 11795
+        },
+        {
+          "width_ft": 38,
+          "length_ft": 35,
+          "price_usd": 13595
+        },
+        {
+          "width_ft": 38,
+          "length_ft": 40,
+          "price_usd": 15495
+        },
+        {
+          "width_ft": 38,
+          "length_ft": 45,
+          "price_usd": 17695
+        },
+        {
+          "width_ft": 38,
+          "length_ft": 50,
+          "price_usd": 18495
+        },
+        {
+          "width_ft": 40,
+          "length_ft": 30,
+          "price_usd": 12395
+        },
+        {
+          "width_ft": 40,
+          "length_ft": 35,
+          "price_usd": 14295
+        },
+        {
+          "width_ft": 40,
+          "length_ft": 40,
+          "price_usd": 16195
+        },
+        {
+          "width_ft": 40,
+          "length_ft": 45,
+          "price_usd": 18495
+        },
+        {
+          "width_ft": 40,
+          "length_ft": 50,
+          "price_usd": 20495
+        }
+      ]
+    },
+    {
+      "title": "42 FT- 70 FT WIDE A-FRAME VERTICAL ONLY",
+      "gauge": 14,
+      "widths_ft": [
+        42,
+        44,
+        46,
+        48,
+        50,
+        52,
+        54,
+        56,
+        58,
+        60,
+        62,
+        64,
+        66,
+        68,
+        70
+      ],
+      "lengths_ft": [
+        30,
+        35,
+        40,
+        45,
+        50
+      ],
+      "entries": [
+        {
+          "width_ft": 42,
+          "length_ft": 30,
+          "price_usd": 14395
+        },
+        {
+          "width_ft": 42,
+          "length_ft": 35,
+          "price_usd": 16095
+        },
+        {
+          "width_ft": 42,
+          "length_ft": 40,
+          "price_usd": 17495
+        },
+        {
+          "width_ft": 42,
+          "length_ft": 45,
+          "price_usd": 20495
+        },
+        {
+          "width_ft": 42,
+          "length_ft": 50,
+          "price_usd": 22695
+        },
+        {
+          "width_ft": 44,
+          "length_ft": 30,
+          "price_usd": 15795
+        },
+        {
+          "width_ft": 44,
+          "length_ft": 35,
+          "price_usd": 17795
+        },
+        {
+          "width_ft": 44,
+          "length_ft": 40,
+          "price_usd": 19795
+        },
+        {
+          "width_ft": 44,
+          "length_ft": 45,
+          "price_usd": 21795
+        },
+        {
+          "width_ft": 44,
+          "length_ft": 50,
+          "price_usd": 23795
+        },
+        {
+          "width_ft": 46,
+          "length_ft": 30,
+          "price_usd": 16995
+        },
+        {
+          "width_ft": 46,
+          "length_ft": 35,
+          "price_usd": 19995
+        },
+        {
+          "width_ft": 46,
+          "length_ft": 40,
+          "price_usd": 21195
+        },
+        {
+          "width_ft": 46,
+          "length_ft": 45,
+          "price_usd": 23295
+        },
+        {
+          "width_ft": 46,
+          "length_ft": 50,
+          "price_usd": 25495
+        },
+        {
+          "width_ft": 48,
+          "length_ft": 30,
+          "price_usd": 18095
+        },
+        {
+          "width_ft": 48,
+          "length_ft": 35,
+          "price_usd": 20395
+        },
+        {
+          "width_ft": 48,
+          "length_ft": 40,
+          "price_usd": 22595
+        },
+        {
+          "width_ft": 48,
+          "length_ft": 45,
+          "price_usd": 24895
+        },
+        {
+          "width_ft": 48,
+          "length_ft": 50,
+          "price_usd": 27195
+        },
+        {
+          "width_ft": 50,
+          "length_ft": 30,
+          "price_usd": 18895
+        },
+        {
+          "width_ft": 50,
+          "length_ft": 35,
+          "price_usd": 21195
+        },
+        {
+          "width_ft": 50,
+          "length_ft": 40,
+          "price_usd": 23495
+        },
+        {
+          "width_ft": 50,
+          "length_ft": 45,
+          "price_usd": 25795
+        },
+        {
+          "width_ft": 50,
+          "length_ft": 50,
+          "price_usd": 27995
+        },
+        {
+          "width_ft": 52,
+          "length_ft": 30,
+          "price_usd": 20395
+        },
+        {
+          "width_ft": 52,
+          "length_ft": 35,
+          "price_usd": 22895
+        },
+        {
+          "width_ft": 52,
+          "length_ft": 40,
+          "price_usd": 25495
+        },
+        {
+          "width_ft": 52,
+          "length_ft": 45,
+          "price_usd": 27995
+        },
+        {
+          "width_ft": 52,
+          "length_ft": 50,
+          "price_usd": 31295
+        },
+        {
+          "width_ft": 54,
+          "length_ft": 30,
+          "price_usd": 20495
+        },
+        {
+          "width_ft": 54,
+          "length_ft": 35,
+          "price_usd": 23195
+        },
+        {
+          "width_ft": 54,
+          "length_ft": 40,
+          "price_usd": 25895
+        },
+        {
+          "width_ft": 54,
+          "length_ft": 45,
+          "price_usd": 28595
+        },
+        {
+          "width_ft": 56,
+          "length_ft": 30,
+          "price_usd": 22595
+        },
+        {
+          "width_ft": 56,
+          "length_ft": 35,
+          "price_usd": 25495
+        },
+        {
+          "width_ft": 56,
+          "length_ft": 40,
+          "price_usd": 28295
+        },
+        {
+          "width_ft": 56,
+          "length_ft": 45,
+          "price_usd": 31195
+        },
+        {
+          "width_ft": 56,
+          "length_ft": 50,
+          "price_usd": 34095
+        },
+        {
+          "width_ft": 58,
+          "length_ft": 30,
+          "price_usd": 23795
+        },
+        {
+          "width_ft": 58,
+          "length_ft": 35,
+          "price_usd": 26695
+        },
+        {
+          "width_ft": 58,
+          "length_ft": 40,
+          "price_usd": 29695
+        },
+        {
+          "width_ft": 58,
+          "length_ft": 45,
+          "price_usd": 32695
+        },
+        {
+          "width_ft": 58,
+          "length_ft": 50,
+          "price_usd": 35695
+        },
+        {
+          "width_ft": 60,
+          "length_ft": 30,
+          "price_usd": 24895
+        },
+        {
+          "width_ft": 60,
+          "length_ft": 35,
+          "price_usd": 27995
+        },
+        {
+          "width_ft": 60,
+          "length_ft": 40,
+          "price_usd": 31095
+        },
+        {
+          "width_ft": 60,
+          "length_ft": 45,
+          "price_usd": 34195
+        },
+        {
+          "width_ft": 60,
+          "length_ft": 50,
+          "price_usd": 37395
+        },
+        {
+          "width_ft": 62,
+          "length_ft": 30,
+          "price_usd": 27730
+        },
+        {
+          "width_ft": 62,
+          "length_ft": 35,
+          "price_usd": 35150
+        },
+        {
+          "width_ft": 62,
+          "length_ft": 40,
+          "price_usd": 36440
+        },
+        {
+          "width_ft": 62,
+          "length_ft": 45,
+          "price_usd": 42070
+        },
+        {
+          "width_ft": 62,
+          "length_ft": 50,
+          "price_usd": 47390
+        },
+        {
+          "width_ft": 64,
+          "length_ft": 30,
+          "price_usd": 30130
+        },
+        {
+          "width_ft": 64,
+          "length_ft": 35,
+          "price_usd": 35640
+        },
+        {
+          "width_ft": 64,
+          "length_ft": 40,
+          "price_usd": 36940
+        },
+        {
+          "width_ft": 64,
+          "length_ft": 45,
+          "price_usd": 42650
+        },
+        {
+          "width_ft": 64,
+          "length_ft": 50,
+          "price_usd": 48050
+        },
+        {
+          "width_ft": 66,
+          "length_ft": 30,
+          "price_usd": 30540
+        },
+        {
+          "width_ft": 66,
+          "length_ft": 35,
+          "price_usd": 36130
+        },
+        {
+          "width_ft": 66,
+          "length_ft": 40,
+          "price_usd": 37450
+        },
+        {
+          "width_ft": 66,
+          "length_ft": 45,
+          "price_usd": 43230
+        },
+        {
+          "width_ft": 66,
+          "length_ft": 50,
+          "price_usd": 48710
+        },
+        {
+          "width_ft": 68,
+          "length_ft": 30,
+          "price_usd": 30950
+        },
+        {
+          "width_ft": 68,
+          "length_ft": 35,
+          "price_usd": 36620
+        },
+        {
+          "width_ft": 68,
+          "length_ft": 40,
+          "price_usd": 37950
+        },
+        {
+          "width_ft": 68,
+          "length_ft": 45,
+          "price_usd": 43810
+        },
+        {
+          "width_ft": 68,
+          "length_ft": 50,
+          "price_usd": 49370
+        },
+        {
+          "width_ft": 70,
+          "length_ft": 30,
+          "price_usd": 31830
+        },
+        {
+          "width_ft": 70,
+          "length_ft": 35,
+          "price_usd": 37650
+        },
+        {
+          "width_ft": 70,
+          "length_ft": 40,
+          "price_usd": 39070
+        },
+        {
+          "width_ft": 70,
+          "length_ft": 45,
+          "price_usd": 45060
+        },
+        {
+          "width_ft": 70,
+          "length_ft": 50,
+          "price_usd": 50770
+        }
+      ]
+    },
+    {
+      "title": "Carport Pricing",
+      "gauge": 14,
+      "widths_ft": [
+        12,
+        18,
+        20,
+        22,
+        24
+      ],
+      "lengths_ft": [
+        20,
+        21,
+        25,
+        26,
+        30,
+        31,
+        35,
+        36,
+        40,
+        45,
+        50
+      ],
+      "entries": [
+        {
+          "width_ft": 12,
+          "length_ft": 20,
+          "price_usd": 3995
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 21,
+          "price_usd": 3295
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 25,
+          "price_usd": 4595
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 26,
+          "price_usd": 3595
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 30,
+          "price_usd": 5095
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 31,
+          "price_usd": 4095
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 35,
+          "price_usd": 5795
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 36,
+          "price_usd": 4695
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 40,
+          "price_usd": 6395
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 45,
+          "price_usd": 7095
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 50,
+          "price_usd": 7795
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 20,
+          "price_usd": 4395
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 21,
+          "price_usd": 3595
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 25,
+          "price_usd": 5095
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 26,
+          "price_usd": 4195
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 30,
+          "price_usd": 5695
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 31,
+          "price_usd": 4695
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 35,
+          "price_usd": 6495
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 36,
+          "price_usd": 5395
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 40,
+          "price_usd": 7095
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 45,
+          "price_usd": 7795
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 50,
+          "price_usd": 8595
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 20,
+          "price_usd": 4795
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 21,
+          "price_usd": 4095
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 25,
+          "price_usd": 5595
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 26,
+          "price_usd": 4695
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 30,
+          "price_usd": 6195
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 31,
+          "price_usd": 5095
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 35,
+          "price_usd": 7095
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 36,
+          "price_usd": 5995
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 40,
+          "price_usd": 7695
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 45,
+          "price_usd": 8395
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 50,
+          "price_usd": 9195
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 20,
+          "price_usd": 5795
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 21,
+          "price_usd": 4995
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 25,
+          "price_usd": 6495
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 26,
+          "price_usd": 5695
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 30,
+          "price_usd": 7595
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 31,
+          "price_usd": 6495
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 35,
+          "price_usd": 8695
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 36,
+          "price_usd": 7595
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 40,
+          "price_usd": 9595
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 45,
+          "price_usd": 10495
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 50,
+          "price_usd": 11295
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 20,
+          "price_usd": 5995
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 21,
+          "price_usd": 5295
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 25,
+          "price_usd": 6995
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 26,
+          "price_usd": 6195
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 30,
+          "price_usd": 7995
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 31,
+          "price_usd": 6995
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 35,
+          "price_usd": 9295
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 36,
+          "price_usd": 7995
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 40,
+          "price_usd": 10595
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 45,
+          "price_usd": 11895
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 50,
+          "price_usd": 13195
+        }
+      ]
+    },
+    {
+      "title": "Horizontal Roof Side Entry Carports",
+      "gauge": 14,
+      "widths_ft": [
+        12,
+        18,
+        20,
+        22,
+        24
+      ],
+      "lengths_ft": [
+        26,
+        31,
+        36
+      ],
+      "entries": [
+        {
+          "width_ft": 12,
+          "length_ft": 26,
+          "price_usd": 6310
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 31,
+          "price_usd": 7785
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 36,
+          "price_usd": 8375
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 26,
+          "price_usd": 6810
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 31,
+          "price_usd": 8285
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 36,
+          "price_usd": 8675
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 26,
+          "price_usd": 7010
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 31,
+          "price_usd": 8585
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 36,
+          "price_usd": 9175
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 26,
+          "price_usd": 7510
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 31,
+          "price_usd": 8985
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 36,
+          "price_usd": 9675
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 26,
+          "price_usd": 7810
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 31,
+          "price_usd": 9485
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 36,
+          "price_usd": 10275
+        }
+      ]
+    },
+    {
+      "title": "Vertical Roof Side Entry Carports",
+      "gauge": 14,
+      "widths_ft": [
+        12,
+        18,
+        20,
+        22,
+        24
+      ],
+      "lengths_ft": [
+        25,
+        30,
+        35,
+        40,
+        45,
+        50
+      ],
+      "entries": [
+        {
+          "width_ft": 12,
+          "length_ft": 25,
+          "price_usd": 6910
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 30,
+          "price_usd": 8385
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 35,
+          "price_usd": 9075
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 40,
+          "price_usd": 10540
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 45,
+          "price_usd": 11235
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 50,
+          "price_usd": 12820
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 25,
+          "price_usd": 7410
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 30,
+          "price_usd": 8985
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 35,
+          "price_usd": 9575
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 40,
+          "price_usd": 11140
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 45,
+          "price_usd": 11835
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 50,
+          "price_usd": 13420
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 25,
+          "price_usd": 7610
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 30,
+          "price_usd": 9185
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 35,
+          "price_usd": 9875
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 40,
+          "price_usd": 11740
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 45,
+          "price_usd": 12535
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 50,
+          "price_usd": 14220
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 25,
+          "price_usd": 8010
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 30,
+          "price_usd": 9685
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 35,
+          "price_usd": 10475
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 40,
+          "price_usd": 12340
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 45,
+          "price_usd": 13135
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 50,
+          "price_usd": 14820
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 25,
+          "price_usd": 8410
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 30,
+          "price_usd": 10185
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 35,
+          "price_usd": 10975
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 40,
+          "price_usd": 12740
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 45,
+          "price_usd": 13835
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 50,
+          "price_usd": 15620
+        }
+      ]
+    },
+    {
+      "title": "A-FRAME Style RV Covers",
+      "gauge": 14,
+      "widths_ft": [
+        12,
+        18,
+        20,
+        22,
+        24
+      ],
+      "lengths_ft": [
+        21,
+        26,
+        31,
+        36
+      ],
+      "entries": [
+        {
+          "width_ft": 12,
+          "length_ft": 21,
+          "price_usd": 5630
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 26,
+          "price_usd": 6525
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 31,
+          "price_usd": 7490
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 36,
+          "price_usd": 8615
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 21,
+          "price_usd": 6030
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 26,
+          "price_usd": 7025
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 31,
+          "price_usd": 7990
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 36,
+          "price_usd": 8915
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 21,
+          "price_usd": 6430
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 26,
+          "price_usd": 7225
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 31,
+          "price_usd": 8290
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 36,
+          "price_usd": 9415
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 21,
+          "price_usd": 6630
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 26,
+          "price_usd": 7725
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 31,
+          "price_usd": 8690
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 36,
+          "price_usd": 9915
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 21,
+          "price_usd": 7030
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 26,
+          "price_usd": 8025
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 31,
+          "price_usd": 9190
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 36,
+          "price_usd": 10515
+        }
+      ]
+    },
+    {
+      "title": "A-FRAME Style With Vertical Roof RV Covers",
+      "gauge": 14,
+      "widths_ft": [
+        12,
+        18,
+        20,
+        22,
+        24
+      ],
+      "lengths_ft": [
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,
+        50
+      ],
+      "entries": [
+        {
+          "width_ft": 12,
+          "length_ft": 20,
+          "price_usd": 5830
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 25,
+          "price_usd": 7125
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 30,
+          "price_usd": 8090
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 35,
+          "price_usd": 9315
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 40,
+          "price_usd": 10415
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 45,
+          "price_usd": 11755
+        },
+        {
+          "width_ft": 12,
+          "length_ft": 50,
+          "price_usd": 13155
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 20,
+          "price_usd": 6330
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 25,
+          "price_usd": 7625
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 30,
+          "price_usd": 8690
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 35,
+          "price_usd": 9815
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 40,
+          "price_usd": 11015
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 45,
+          "price_usd": 12355
+        },
+        {
+          "width_ft": 18,
+          "length_ft": 50,
+          "price_usd": 13555
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 20,
+          "price_usd": 6530
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 25,
+          "price_usd": 7825
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 30,
+          "price_usd": 8890
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 35,
+          "price_usd": 10115
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 40,
+          "price_usd": 11615
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 45,
+          "price_usd": 13055
+        },
+        {
+          "width_ft": 20,
+          "length_ft": 50,
+          "price_usd": 14555
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 20,
+          "price_usd": 6930
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 25,
+          "price_usd": 8225
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 30,
+          "price_usd": 9390
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 35,
+          "price_usd": 10715
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 40,
+          "price_usd": 12215
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 45,
+          "price_usd": 13655
+        },
+        {
+          "width_ft": 22,
+          "length_ft": 50,
+          "price_usd": 15155
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 20,
+          "price_usd": 7130
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 25,
+          "price_usd": 8625
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 30,
+          "price_usd": 9890
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 35,
+          "price_usd": 11215
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 40,
+          "price_usd": 12615
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 45,
+          "price_usd": 14355
+        },
+        {
+          "width_ft": 24,
+          "length_ft": 50,
+          "price_usd": 15955
+        }
+      ]
+    }
+  ],
+  "option_tables": [
+    {
+      "title": "OPTION LIST",
+      "lengths_ft": [
+        21,
+        26,
+        31,
+        36,
+        41,
+        46,
+        51
+      ],
+      "option_prices_by_code": {
+        "GROUND_CERTIFICATION": {
+          "21": 600,
+          "26": 700,
+          "31": 700,
+          "36": 800,
+          "41": 900,
+          "46": 1000,
+          "51": 1200
+        },
+        "DOUBLE_LEG_UP_TO_12": {
+          "21": 1050,
+          "26": 1300,
+          "31": 1500,
+          "36": 1700,
+          "41": 1950,
+          "46": 2200,
+          "51": 2450
+        },
+        "J_TRIM": {
+          "21": 60,
+          "26": 70,
+          "31": 80,
+          "36": 90,
+          "41": 100,
+          "46": 110,
+          "51": 120
+        }
+      },
+      "leg_height_addons": {
+        "6": {
+          "21": 0,
+          "26": 0,
+          "31": 0,
+          "36": 0,
+          "41": 0,
+          "46": 0,
+          "51": 0
+        },
+        "7": {
+          "21": 110,
+          "26": 135,
+          "31": 150,
+          "36": 180,
+          "41": 205,
+          "46": 240,
+          "51": 265
+        },
+        "8": {
+          "21": 220,
+          "26": 265,
+          "31": 300,
+          "36": 360,
+          "41": 410,
+          "46": 480,
+          "51": 530
+        },
+        "9": {
+          "21": 325,
+          "26": 400,
+          "31": 450,
+          "36": 580,
+          "41": 690,
+          "46": 720,
+          "51": 800
+        },
+        "10": {
+          "21": 1285,
+          "26": 1630,
+          "31": 1895,
+          "36": 2220,
+          "41": 2570,
+          "46": 2960,
+          "51": 3310
+        },
+        "11": {
+          "21": 1390,
+          "26": 1760,
+          "31": 2050,
+          "36": 2400,
+          "41": 2770,
+          "46": 3200,
+          "51": 3570
+        },
+        "12": {
+          "21": 1560,
+          "26": 1895,
+          "31": 2200,
+          "36": 2580,
+          "41": 2975,
+          "46": 3440,
+          "51": 3840
+        },
+        "13": {
+          "21": 1770,
+          "26": 2305,
+          "31": 2490,
+          "36": 2890,
+          "41": 3370,
+          "46": 3650,
+          "51": 4330
+        },
+        "14": {
+          "21": 1860,
+          "26": 2440,
+          "31": 2520,
+          "36": 3010,
+          "41": 3490,
+          "46": 3970,
+          "51": 4450
+        },
+        "15": {
+          "21": 1920,
+          "26": 2480,
+          "31": 2640,
+          "36": 3120,
+          "41": 3610,
+          "46": 4090,
+          "51": 4570
+        },
+        "16": {
+          "21": 2160,
+          "26": 2520,
+          "31": 2880,
+          "36": 3360,
+          "41": 3850,
+          "46": 4330,
+          "51": 4810
+        },
+        "17": {
+          "21": 2710,
+          "26": 3070,
+          "31": 3430,
+          "36": 4160,
+          "41": 4600,
+          "46": 5035,
+          "51": 5475
+        },
+        "18": {
+          "21": 2820,
+          "26": 3200,
+          "31": 3590,
+          "36": 4350,
+          "41": 4815,
+          "46": 5280,
+          "51": 5750
+        },
+        "19": {
+          "21": 2940,
+          "26": 3340,
+          "31": 3750,
+          "36": 4550,
+          "41": 5040,
+          "46": 5540,
+          "51": 6040
+        }
+      }
+    }
+  ],
+  "accessory_prices": {
+    "WINDOW_FRAME_OUT": 125,
+    "WALK_IN_DOOR_FRAME_OUT": 150,
+    "GARAGE_DOOR_FRAME_OUT": 300,
+    "WINDOW_24X36": 250,
+    "ROLL_UP_DOOR_6X6": 550,
+    "ROLL_UP_DOOR_6X7": 700,
+    "ROLL_UP_DOOR_8X7": 800,
+    "ROLL_UP_DOOR_9X8": 950,
+    "ROLL_UP_DOOR_10X8": 1050,
+    "ROLL_UP_DOOR_10X10": 1200,
+    "WINDOW_30X36": 275,
+    "WALK_IN_DOOR_STANDARD_36X80": 350,
+    "WALK_IN_DOOR_SIX_PANEL_36X80": 400,
+    "WALK_IN_DOOR_SIX_PANEL_WINDOW_36X80": 450,
+    "WALK_IN_DOOR_NINE_LITE_36X80": 550
+  },
+  "accessory_prices_by_length": {
+    "EXTRA_PANEL": {
+      "21": 160,
+      "26": 190,
+      "31": 220,
+      "36": 250
+    }
+  },
+  "closed_end_prices_by_leg_height_width": {
+    "10": {
+      "12": 1080,
+      "18": 1200,
+      "20": 1320,
+      "22": 1440,
+      "24": 1560
+    },
+    "11": {
+      "12": 1170,
+      "18": 1290,
+      "20": 1410,
+      "22": 1530,
+      "24": 1650
+    },
+    "12": {
+      "12": 1260,
+      "18": 1380,
+      "20": 1500,
+      "22": 1690,
+      "24": 1740
+    },
+    "13": {
+      "12": 1350,
+      "18": 1470,
+      "20": 1590,
+      "22": 1880,
+      "24": 1900
+    },
+    "14": {
+      "12": 1440,
+      "18": 1590,
+      "20": 1760,
+      "22": 1920,
+      "24": 2090
+    },
+    "15": {
+      "12": 1675,
+      "18": 2110,
+      "20": 2540,
+      "22": 2970,
+      "24": 3360
+    }
+  },
+  "vertical_end_add_by_width": {
+    "12": 450,
+    "18": 650,
+    "20": 700,
+    "22": 750,
+    "24": 800
+  }
+}
