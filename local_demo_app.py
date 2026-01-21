@@ -19,6 +19,8 @@ from urllib import request as urllib_request
 import streamlit as st
 import streamlit.components.v1 as components
 
+import ai_intent
+
 from building_views import (
     BuildingColorScheme,
     BuildingOpening,
@@ -72,6 +74,35 @@ def _read_secret_or_env_str(key: str) -> str:
     if isinstance(val, str):
         return val.strip()
     return str(val).strip() if val is not None else ""
+
+
+def _sync_openai_intent_env_from_secrets() -> None:
+    """
+    Mirror Streamlit secrets into environment variables for the intent recognizer.
+
+    This keeps `ai_intent.py` Streamlit-free while still allowing `.streamlit/secrets.toml`
+    to control OpenAI usage.
+    """
+    api_key = _read_secret_or_env_str("OPENAI_API_KEY")
+    if api_key:
+        os.environ["OPENAI_API_KEY"] = api_key
+    model = _read_secret_or_env_str("OPENAI_INTENT_MODEL")
+    if model:
+        os.environ["OPENAI_INTENT_MODEL"] = model
+    enabled = _read_secret_or_env_str("OPENAI_INTENT_ENABLED")
+    if enabled:
+        os.environ["OPENAI_INTENT_ENABLED"] = enabled
+
+
+def _apply_ai_intent_env_from_ui_state() -> None:
+    """
+    Apply Streamlit UI state to env vars before chat handling runs.
+    """
+    enabled = bool(st.session_state.get("ai_intent_enabled_ui", False))
+    os.environ["OPENAI_INTENT_ENABLED"] = "true" if enabled else "false"
+    model = str(st.session_state.get("ai_intent_model_ui") or "").strip()
+    if model:
+        os.environ["OPENAI_INTENT_MODEL"] = model
 
 
 def _sha256_hex(text: str) -> str:
@@ -359,7 +390,7 @@ class ChatMessage(TypedDict, total=False):
     visible_at_ms: int
 
 
-_CHAT_ASSISTANT_MESSAGE_DELAY_MS = 250
+_CHAT_ASSISTANT_MESSAGE_DELAY_MS = 1000
 
 
 def _init_lead_state() -> None:
@@ -387,6 +418,10 @@ def _init_lead_state() -> None:
         st.session_state["chat_built_size_has_dims"] = False
     if "_lead_shadow" not in st.session_state:
         st.session_state["_lead_shadow"] = {"name": "", "email": "", "captured": False}
+    if "ai_intent_enabled_ui" not in st.session_state:
+        st.session_state["ai_intent_enabled_ui"] = _truthy_str(_read_secret_or_env_str("OPENAI_INTENT_ENABLED"))
+    if "ai_intent_model_ui" not in st.session_state:
+        st.session_state["ai_intent_model_ui"] = _read_secret_or_env_str("OPENAI_INTENT_MODEL") or "gpt-5-mini"
 
 
 def _sync_lead_shadow() -> None:
@@ -430,6 +465,10 @@ def _sync_lead_shadow() -> None:
 
 
 _EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
+
+
+def _truthy_str(value: str) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def _normalize_email(value: str) -> str:
@@ -520,7 +559,18 @@ def _parse_dimensions_ft(text: str) -> Optional[tuple[int, int]]:
         t,
     )
     if not m:
-        return None
+        # Loose fallback for inputs like "22 26" on the Built & Size step.
+        nums = re.findall(r"\b\d{1,3}\b", t)
+        if len(nums) != 2:
+            return None
+        try:
+            w = int(nums[0])
+            l = int(nums[1])
+        except Exception:
+            return None
+        if w <= 0 or l <= 0 or w > 60 or l > 200:
+            return None
+        return (w, l)
     w = int(m.group(1))
     l = int(m.group(2))
     # Guardrails: this demo pricebook is in feet and typical sizes are not thousands.
@@ -577,11 +627,13 @@ def _ensure_chat_quick_pick_state(*, book: PriceBook) -> None:
     We keep separate 'chat_*' widget state and sync into the real wizard state on confirm.
     """
     if "chat_demo_style" not in st.session_state:
-        st.session_state.chat_demo_style = str(st.session_state.get("demo_style") or "A-Frame (Horizontal)")
+        st.session_state["chat_demo_style"] = str(st.session_state.get("demo_style") or "A-Frame (Horizontal)")
     if "chat_width_ft" not in st.session_state:
-        st.session_state.chat_width_ft = int(st.session_state.get("width_ft") or (book.allowed_widths_ft[0] if book.allowed_widths_ft else 12))
+        st.session_state["chat_width_ft"] = int(
+            st.session_state.get("width_ft") or (book.allowed_widths_ft[0] if book.allowed_widths_ft else 12)
+        )
     if "chat_length_ft" not in st.session_state:
-        st.session_state.chat_length_ft = int(st.session_state.get("length_ft") or 21)
+        st.session_state["chat_length_ft"] = int(st.session_state.get("length_ft") or 21)
 
 
 def _ensure_chat_action_state(*, book: PriceBook) -> None:
@@ -723,57 +775,58 @@ def _apply_chat_action_to_wizard(*, step_key: str) -> None:
     Copy the current Action Card selections into the wizard's canonical state keys.
     """
     if step_key == "built_size":
-        st.session_state.demo_style = str(st.session_state.get("chat_action_demo_style") or st.session_state.get("demo_style"))
-        st.session_state.width_ft = int(st.session_state.get("chat_action_width_ft") or st.session_state.get("width_ft") or 0)
-        st.session_state.length_ft = int(st.session_state.get("chat_action_length_ft") or st.session_state.get("length_ft") or 0)
+        st.session_state["demo_style"] = str(st.session_state.get("chat_action_demo_style") or st.session_state.get("demo_style"))
+        st.session_state["width_ft"] = int(st.session_state.get("chat_action_width_ft") or st.session_state.get("width_ft") or 0)
+        st.session_state["length_ft"] = int(st.session_state.get("chat_action_length_ft") or st.session_state.get("length_ft") or 0)
         # Keep style-prev consistent with current style to avoid length mapping surprises.
-        st.session_state.demo_style_prev = st.session_state.demo_style
+        st.session_state["demo_style_prev"] = str(st.session_state.get("demo_style") or "")
     elif step_key == "leg_height":
-        st.session_state.leg_height_ft = int(st.session_state.get("chat_action_leg_height_ft") or st.session_state.get("leg_height_ft") or 0)
+        st.session_state["leg_height_ft"] = int(st.session_state.get("chat_action_leg_height_ft") or st.session_state.get("leg_height_ft") or 0)
     elif step_key == "openings_types":
-        st.session_state.walk_in_door_type = str(st.session_state.get("chat_action_walk_in_door_type") or "None")
-        st.session_state.walk_in_door_count = int(st.session_state.get("chat_action_walk_in_door_count") or 0)
-        if str(st.session_state.walk_in_door_type) == "None":
-            st.session_state.walk_in_door_count = 0
+        st.session_state["walk_in_door_type"] = str(st.session_state.get("chat_action_walk_in_door_type") or "None")
+        st.session_state["walk_in_door_count"] = int(st.session_state.get("chat_action_walk_in_door_count") or 0)
+        if str(st.session_state.get("walk_in_door_type") or "None") == "None":
+            st.session_state["walk_in_door_count"] = 0
 
-        st.session_state.window_size = str(st.session_state.get("chat_action_window_size") or "None")
-        st.session_state.window_count = int(st.session_state.get("chat_action_window_count") or 0)
-        if str(st.session_state.window_size) == "None":
-            st.session_state.window_count = 0
+        st.session_state["window_size"] = str(st.session_state.get("chat_action_window_size") or "None")
+        st.session_state["window_count"] = int(st.session_state.get("chat_action_window_count") or 0)
+        if str(st.session_state.get("window_size") or "None") == "None":
+            st.session_state["window_count"] = 0
 
-        st.session_state.garage_door_type = str(st.session_state.get("chat_action_garage_door_type") or "None")
-        st.session_state.garage_door_size = str(st.session_state.get("chat_action_garage_door_size") or "10x8")
-        st.session_state.garage_door_count = int(st.session_state.get("chat_action_garage_door_count") or 0)
-        if str(st.session_state.garage_door_type) == "None":
-            st.session_state.garage_door_count = 0
+        st.session_state["garage_door_type"] = str(st.session_state.get("chat_action_garage_door_type") or "None")
+        st.session_state["garage_door_size"] = str(st.session_state.get("chat_action_garage_door_size") or "10x8")
+        st.session_state["garage_door_count"] = int(st.session_state.get("chat_action_garage_door_count") or 0)
+        if str(st.session_state.get("garage_door_type") or "None") == "None":
+            st.session_state["garage_door_count"] = 0
 
         # When the user edits qty/type mode, clear advanced placement so the preview matches.
-        st.session_state.openings = []
-        st.session_state.opening_seq = int(st.session_state.get("opening_seq") or 1)
+        st.session_state["openings"] = []
+        st.session_state["opening_seq"] = int(st.session_state.get("opening_seq") or 1)
 
     elif step_key == "openings_placement":
         openings = st.session_state.get("chat_action_openings")
         if isinstance(openings, list):
-            st.session_state.openings = list(openings)
-        st.session_state.opening_seq = int(st.session_state.get("chat_action_opening_seq") or st.session_state.get("opening_seq") or 1)
+            st.session_state["openings"] = list(openings)
+        st.session_state["opening_seq"] = int(st.session_state.get("chat_action_opening_seq") or st.session_state.get("opening_seq") or 1)
     elif step_key == "options":
-        st.session_state.include_ground_certification = bool(st.session_state.get("chat_action_include_ground_certification") or False)
+        st.session_state["include_ground_certification"] = bool(st.session_state.get("chat_action_include_ground_certification") or False)
         codes = st.session_state.get("chat_action_selected_option_codes")
-        st.session_state.selected_option_codes = list(codes) if isinstance(codes, list) else []
-        st.session_state.extra_panel_count = int(st.session_state.get("chat_action_extra_panel_count") or 0)
+        st.session_state["selected_option_codes"] = list(codes) if isinstance(codes, list) else []
+        st.session_state["extra_panel_count"] = int(st.session_state.get("chat_action_extra_panel_count") or 0)
         # Copy per-option placements when present.
-        if isinstance(st.session_state.get("selected_option_codes"), list):
-            for code in st.session_state.selected_option_codes:
+        selected_codes = st.session_state.get("selected_option_codes")
+        if isinstance(selected_codes, list):
+            for code in selected_codes:
                 if isinstance(code, str) and code:
                     chat_key = f"chat_action_placement_{code}"
                     if chat_key in st.session_state:
                         st.session_state[f"placement_{code}"] = st.session_state.get(chat_key)
     elif step_key == "colors":
-        st.session_state.roof_color = str(st.session_state.get("chat_action_roof_color") or "White")
-        st.session_state.trim_color = str(st.session_state.get("chat_action_trim_color") or "White")
-        st.session_state.side_color = str(st.session_state.get("chat_action_side_color") or "White")
+        st.session_state["roof_color"] = str(st.session_state.get("chat_action_roof_color") or "White")
+        st.session_state["trim_color"] = str(st.session_state.get("chat_action_trim_color") or "White")
+        st.session_state["side_color"] = str(st.session_state.get("chat_action_side_color") or "White")
     elif step_key == "notes":
-        st.session_state.internal_notes = str(st.session_state.get("chat_action_internal_notes") or "")
+        st.session_state["internal_notes"] = str(st.session_state.get("chat_action_internal_notes") or "")
 
 
 def _maybe_autoscroll_chat() -> None:
@@ -811,7 +864,7 @@ def _maybe_autoscroll_chat() -> None:
 """,
         height=0,
     )
-    st.session_state.chat_last_scrolled_at_ms = latest_ms
+    st.session_state["chat_last_scrolled_at_ms"] = latest_ms
 
 
 def _quote_input_signature(book: PriceBook, quote) -> str:
@@ -900,6 +953,384 @@ def _chat_bare_command(text: str) -> Optional[str]:
         return None
     return tokens[0]
 
+
+def _ai_intent_context_for_step(step_key: str, book: PriceBook) -> dict[str, object]:
+    style_labels = ["Regular (Horizontal)", "A-Frame (Horizontal)", "A-Frame (Vertical)"]
+    allowed_widths = list(book.allowed_widths_ft)
+    horizontal_lengths = [21, 26, 31, 36]
+    vertical_lengths = [20, 25, 30, 35]
+    allowed_leg_heights = list(book.allowed_leg_heights_ft)
+
+    pending = st.session_state.get("chat_pending_suggestion")
+    pending_obj = pending if isinstance(pending, dict) else None
+
+    ctx: dict[str, object] = {
+        "step_key": step_key,
+        "current": {
+            "demo_style": str(st.session_state.get("demo_style") or ""),
+            "width_ft": int(st.session_state.get("width_ft") or 0),
+            "length_ft": int(st.session_state.get("length_ft") or 0),
+            "leg_height_ft": int(st.session_state.get("leg_height_ft") or 0),
+            "walk_in_door_type": str(st.session_state.get("walk_in_door_type") or "None"),
+            "walk_in_door_count": int(st.session_state.get("walk_in_door_count") or 0),
+            "window_size": str(st.session_state.get("window_size") or "None"),
+            "window_count": int(st.session_state.get("window_count") or 0),
+            "garage_door_type": str(st.session_state.get("garage_door_type") or "None"),
+            "garage_door_size": str(st.session_state.get("garage_door_size") or "10x8"),
+            "garage_door_count": int(st.session_state.get("garage_door_count") or 0),
+            "selected_option_codes": list(st.session_state.get("selected_option_codes") or []),
+            "openings_placements_count": (
+                len(st.session_state.get("openings") or []) if isinstance(st.session_state.get("openings"), list) else 0
+            ),
+        },
+        "allowed": {
+            "style_labels": style_labels,
+            "widths_ft": allowed_widths,
+            "horizontal_lengths_ft": horizontal_lengths,
+            "vertical_lengths_ft": vertical_lengths,
+            "leg_heights_ft": allowed_leg_heights,
+            "walk_in_door_labels": ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS),
+            "window_sizes": ["None"] + _available_accessory_labels(book, WINDOW_OPTIONS),
+            "roll_up_door_sizes": ["None"] + _available_accessory_labels(book, ROLL_UP_DOOR_OPTIONS),
+            "option_codes": _available_option_codes(book),
+            "colors": ["White", "Gray", "Black", "Tan", "Sandstone", "Brown", "Red", "Burgundy", "Blue", "Green"],
+            "placements": ["front", "back", "left", "right"],
+            "opening_kinds": ["door", "window", "garage"],
+        },
+        "pending": pending_obj,
+    }
+    return ctx
+
+
+def _bulk_offsets_for_wall(*, side: str, count: int, width_ft: int, length_ft: int) -> list[int]:
+    """
+    Generate 'reasonable' offsets for bulk placement when the user says e.g. "3 doors on the left".
+    """
+    side_norm = str(side or "").strip().lower()
+    wall_len = int(width_ft if side_norm in {"front", "back"} else length_ft)
+    wall_len = max(0, wall_len)
+    count = max(0, int(count))
+    if count <= 0:
+        return []
+    if wall_len <= 1:
+        return [0 for _ in range(count)]
+    if count == 1:
+        return [0]
+    span = wall_len - 1
+    return [int(round(i * span / (count - 1))) for i in range(count)]
+
+
+def _parse_section_placement(text: str) -> Optional[SectionPlacement]:
+    t = (text or "").lower()
+    if re.search(r"\bfront\b", t):
+        return SectionPlacement.FRONT
+    if re.search(r"\bback\b", t):
+        return SectionPlacement.BACK
+    if re.search(r"\bleft\b", t):
+        return SectionPlacement.LEFT
+    if re.search(r"\bright\b", t):
+        return SectionPlacement.RIGHT
+    return None
+
+
+def _try_handle_with_ai_intent(*, step_key: str, raw: str, step_index: int, max_step_index: int, book: PriceBook) -> bool:
+    """
+    Optional GPT intent recognition layer.
+
+    Returns True if it handled the input (and typically calls st.rerun()).
+    """
+    if not ai_intent.ai_intent_enabled():
+        return False
+
+    ctx = _ai_intent_context_for_step(step_key, book)
+    intent = ai_intent.recognize_step_intent(step_key=step_key, user_text=raw, context=ctx)
+    if intent is None:
+        return False
+
+    if intent.action == "noop":
+        return False
+
+    if intent.action == "clarify":
+        msg = intent.clarification or "Can you clarify what you want to do for this step?"
+        _chat_add(role="assistant", content=msg)
+        st.rerun()
+
+    # Built & Size
+    if step_key == "built_size":
+        if intent.action == "apply_suggestion":
+            pending = st.session_state.get("chat_pending_suggestion")
+            if isinstance(pending, dict) and pending.get("kind") == "built_size":
+                suggested = pending.get("suggested")
+                if isinstance(suggested, dict):
+                    w = suggested.get("width_ft")
+                    l = suggested.get("length_ft")
+                    if isinstance(w, int) and isinstance(l, int):
+                        st.session_state["width_ft"] = int(w)
+                        st.session_state["length_ft"] = int(l)
+                        st.session_state["chat_built_size_has_dims"] = True
+                        _clear_pending_chat_suggestion()
+                        _chat_add(role="assistant", content=f"Applied: **{int(w)}x{int(l)} ft**. Next step.")
+                        st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
+                        st.rerun()
+            _chat_add(role="assistant", content="Nothing to apply right now. Type **/hint** for examples.")
+            st.rerun()
+
+        if intent.action == "cancel_suggestion":
+            if st.session_state.get("chat_pending_suggestion") is not None:
+                _clear_pending_chat_suggestion()
+                _chat_add(role="assistant", content="OK — keeping what you typed. Continue with a size like **12x21**.")
+                st.rerun()
+            _chat_add(role="assistant", content="Nothing to cancel. Type **/hint** for examples.")
+            st.rerun()
+
+        updates = dict(intent.updates or {})
+        style = updates.get("demo_style")
+        if isinstance(style, str) and style.strip() in {"Regular (Horizontal)", "A-Frame (Horizontal)", "A-Frame (Vertical)"}:
+            st.session_state["demo_style"] = style.strip()
+            st.session_state["chat_built_size_has_style"] = True
+        width = updates.get("width_ft")
+        length = updates.get("length_ft")
+        if isinstance(width, int) and isinstance(length, int) and width > 0 and length > 0:
+            st.session_state["width_ft"] = int(width)
+            st.session_state["length_ft"] = int(length)
+            st.session_state["chat_built_size_has_dims"] = True
+
+        # Finish like the deterministic flow: suggest next-size-up if needed, otherwise advance.
+        has_style = bool(st.session_state.get("chat_built_size_has_style")) and bool(str(st.session_state.get("demo_style") or "").strip())
+        has_dims = bool(st.session_state.get("chat_built_size_has_dims")) and int(st.session_state.get("width_ft") or 0) > 0 and int(st.session_state.get("length_ft") or 0) > 0
+        st.session_state["chat_built_size_has_style"] = bool(has_style)
+        st.session_state["chat_built_size_has_dims"] = bool(has_dims)
+
+        if not has_style:
+            _chat_add(
+                role="assistant",
+                content="Which style? **Regular**, **A-Frame Horizontal**, or **A-Frame Vertical**. (Type **/hint**.)",
+            )
+            st.rerun()
+
+        if not has_dims:
+            _chat_add(role="assistant", content="What size in feet? Example: **12x21**. (Type **/hint** for examples.)")
+            st.rerun()
+
+        style_now = str(st.session_state.get("demo_style") or "")
+        width_now = int(st.session_state.get("width_ft") or 0)
+        length_now = int(st.session_state.get("length_ft") or 0)
+        allowed_lengths = [20, 25, 30, 35] if style_now == "A-Frame (Vertical)" else [21, 26, 31, 36]
+
+        suggested_w = width_now if width_now in set(book.allowed_widths_ft) else _next_size_up(width_now, list(book.allowed_widths_ft))
+        suggested_l = length_now if length_now in set(allowed_lengths) else _next_size_up(length_now, allowed_lengths)
+        if suggested_w is not None and suggested_l is not None and (suggested_w != width_now or suggested_l != length_now):
+            st.session_state["chat_pending_suggestion"] = {
+                "kind": "built_size",
+                "suggested": {"width_ft": int(suggested_w), "length_ft": int(suggested_l)},
+            }
+            _chat_add(
+                role="assistant",
+                content=(
+                    "Per manufacturer rule, we price at the **next size up** when a size isn’t listed.\n\n"
+                    f"Suggested priced size: **{int(suggested_w)}x{int(suggested_l)} ft**.\n\n"
+                    "Type **/apply** to use that, or **/cancel** to keep what you typed."
+                ),
+            )
+            st.rerun()
+
+        can_advance, reason = _chat_can_advance_step(st.session_state, "built_size", book)
+        if can_advance:
+            _chat_add(
+                role="assistant",
+                content=f"OK — you chose **{style_now}**, **{width_now}x{length_now} ft**.",
+            )
+            st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
+            st.rerun()
+        _chat_add(role="assistant", content=reason or "Type **/hint** for examples.")
+        st.rerun()
+
+    # Leg height
+    if step_key == "leg_height" and intent.action == "set_leg_height":
+        h = intent.updates.get("leg_height_ft")
+        if isinstance(h, int) and h in set(book.allowed_leg_heights_ft):
+            st.session_state["leg_height_ft"] = int(h)
+            _chat_add(role="assistant", content=f"OK — you chose **{int(h)} ft** leg height.")
+            st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
+            st.rerun()
+        _chat_add(role="assistant", content=f"Pick one of the allowed leg heights: **{', '.join(str(x) for x in book.allowed_leg_heights_ft)}**.")
+        st.rerun()
+
+    # Openings (types)
+    if step_key == "openings_types":
+        if intent.action == "clear_openings_types":
+            st.session_state["walk_in_door_type"] = "None"
+            st.session_state["walk_in_door_count"] = 0
+            st.session_state["window_size"] = "None"
+            st.session_state["window_count"] = 0
+            st.session_state["garage_door_type"] = "None"
+            st.session_state["garage_door_count"] = 0
+            st.session_state["openings"] = []
+            st.session_state["opening_seq"] = 1
+            _chat_add(role="assistant", content="OK — no openings.")
+            st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
+            st.rerun()
+
+        if intent.action == "set_openings_types":
+            door_labels = ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)
+            win_labels = ["None"] + _available_accessory_labels(book, WINDOW_OPTIONS)
+            rollup_sizes = ["None"] + _available_accessory_labels(book, ROLL_UP_DOOR_OPTIONS)
+
+            updates = dict(intent.updates or {})
+            door_type = updates.get("walk_in_door_type")
+            door_count = updates.get("walk_in_door_count")
+            if isinstance(door_type, str) and door_type in door_labels:
+                st.session_state["walk_in_door_type"] = door_type
+            if isinstance(door_count, int):
+                st.session_state["walk_in_door_count"] = max(0, min(12, int(door_count)))
+
+            window_size = updates.get("window_size")
+            window_count = updates.get("window_count")
+            if isinstance(window_size, str) and window_size in win_labels:
+                st.session_state["window_size"] = window_size
+            if isinstance(window_count, int):
+                st.session_state["window_count"] = max(0, min(12, int(window_count)))
+
+            garage_type = updates.get("garage_door_type")
+            garage_size = updates.get("garage_door_size")
+            garage_count = updates.get("garage_door_count")
+            if isinstance(garage_type, str) and garage_type in {"None", "Roll-up"}:
+                st.session_state["garage_door_type"] = garage_type
+            if isinstance(garage_size, str) and garage_size in rollup_sizes:
+                st.session_state["garage_door_size"] = garage_size
+            if isinstance(garage_count, int):
+                st.session_state["garage_door_count"] = max(0, min(8, int(garage_count)))
+
+            _chat_add(role="assistant", content="OK — openings updated.")
+            st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
+            st.rerun()
+
+    # Openings (placement)
+    if step_key == "openings_placement":
+        if intent.action == "clear_openings_placements":
+            st.session_state["openings"] = []
+            st.session_state["opening_seq"] = 1
+            _chat_add(role="assistant", content="OK — skipping placement.")
+            st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
+            st.rerun()
+
+        if intent.action in {"set_openings_placements", "bulk_place"}:
+            w = int(st.session_state.get("width_ft") or 0)
+            l = int(st.session_state.get("length_ft") or 0)
+            updates = dict(intent.updates or {})
+
+            placements: list[dict[str, object]] = []
+            raw_placements = updates.get("placements")
+            if isinstance(raw_placements, list):
+                for p in raw_placements:
+                    if not isinstance(p, dict):
+                        continue
+                    kind = str(p.get("kind") or "").lower()
+                    side = str(p.get("side") or "").lower()
+                    off = p.get("offset_ft")
+                    if kind not in {"door", "window", "garage"} or side not in {"front", "back", "left", "right"}:
+                        continue
+                    if not isinstance(off, int):
+                        continue
+                    placements.append({"kind": kind, "side": side, "offset_ft": max(0, int(off))})
+
+            if intent.action == "bulk_place":
+                bulk = updates.get("bulk")
+                if isinstance(bulk, dict):
+                    kind = str(bulk.get("kind") or "").lower()
+                    side = str(bulk.get("side") or "").lower()
+                    count = bulk.get("count")
+                    if kind in {"door", "window", "garage"} and side in {"front", "back", "left", "right"} and isinstance(count, int):
+                        for off in _bulk_offsets_for_wall(side=side, count=int(count), width_ft=w, length_ft=l):
+                            placements.append({"kind": kind, "side": side, "offset_ft": int(off)})
+
+            if not placements:
+                _chat_add(role="assistant", content="For placement, try: **door left 3**, **window right 5**, or **garage front 0** — or type **skip**.")
+                st.rerun()
+
+            st.session_state["openings"] = []
+            st.session_state["opening_seq"] = 1
+            oid = 1
+            for p in placements:
+                openings_list = st.session_state.get("openings")
+                if isinstance(openings_list, list):
+                    openings_list.append({"id": oid, **p})
+                oid += 1
+            st.session_state["opening_seq"] = oid
+            _chat_add(role="assistant", content=f"Placed **{len(placements)}** opening(s). Add more, or type **/next**.")
+            st.rerun()
+
+    # Options
+    if step_key == "options":
+        if intent.action == "clear_options":
+            st.session_state["include_ground_certification"] = False
+            st.session_state["selected_option_codes"] = []
+            st.session_state["extra_panel_count"] = 0
+            placement_keys = [k for k in st.session_state if isinstance(k, str) and k.startswith("placement_")]
+            for k in placement_keys:
+                try:
+                    del st.session_state[k]
+                except Exception:
+                    pass
+            _chat_add(role="assistant", content="OK — no options.")
+            st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
+            st.rerun()
+
+        if intent.action == "set_options":
+            allowed = set(_available_option_codes(book))
+            updates = dict(intent.updates or {})
+            raw_codes = updates.get("option_codes")
+            codes: list[str] = []
+            if isinstance(raw_codes, list):
+                for c in raw_codes:
+                    if isinstance(c, str) and c in allowed:
+                        codes.append(c)
+            if not codes:
+                _chat_add(role="assistant", content="Which option code(s) should I add? Type **/hint** to see the list.")
+                st.rerun()
+
+            existing = st.session_state.get("selected_option_codes")
+            existing_list = list(existing) if isinstance(existing, list) else []
+            for c in codes:
+                if c not in existing_list:
+                    existing_list.append(c)
+            st.session_state["selected_option_codes"] = existing_list
+
+            inc_gc = updates.get("include_ground_certification")
+            if isinstance(inc_gc, bool):
+                st.session_state["include_ground_certification"] = bool(inc_gc)
+
+            _chat_add(role="assistant", content=f"OK — added option(s): {', '.join(f'**{c}**' for c in codes)}.")
+            st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
+            st.rerun()
+
+    # Colors
+    if step_key == "colors" and intent.action == "set_colors":
+        allowed_colors = {"White", "Gray", "Black", "Tan", "Sandstone", "Brown", "Red", "Burgundy", "Blue", "Green"}
+        updates = dict(intent.updates or {})
+        changed = False
+        for k in ("roof_color", "trim_color", "side_color"):
+            v = updates.get(k)
+            if isinstance(v, str) and v in allowed_colors:
+                st.session_state[k] = v
+                changed = True
+        if not changed:
+            _chat_add(role="assistant", content="Tell me roof/trim/side colors (or type **skip**). Type **/hint** for choices.")
+            st.rerun()
+        _chat_add(role="assistant", content="Colors saved. Next step.")
+        st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
+        st.rerun()
+
+    # Notes
+    if step_key == "notes" and intent.action == "set_notes":
+        note = intent.updates.get("internal_notes")
+        if isinstance(note, str):
+            st.session_state["internal_notes"] = note
+            _chat_add(role="assistant", content="OK — notes saved.")
+            st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
+            st.rerun()
+
+    return False
 
 def _chat_menu_for_step(step_key: str, book: PriceBook) -> str:
     """
@@ -1010,6 +1441,7 @@ def _chat_menu_for_step(step_key: str, book: PriceBook) -> str:
         "- **door left 3**\n"
         "- **window right 5**\n"
         "- **garage front 0**\n"
+        "- **3 doors left** (bulk place)\n"
         "- **skip** (use automatic placement)\n"
         "- **none** (no explicit placements)\n\n"
         "### Commands\n"
@@ -1029,6 +1461,8 @@ def _chat_menu_for_step(step_key: str, book: PriceBook) -> str:
         "### All available option codes (this price book)\n"
         f"{options_list}\n\n"
         "### Examples you can type\n"
+        "- **j trim**\n"
+        "- **ground certification**\n"
         "- **none**\n\n"
         "### Commands\n"
         "- **/hint** (show this menu)\n"
@@ -1046,6 +1480,7 @@ def _chat_menu_for_step(step_key: str, book: PriceBook) -> str:
         "### All available colors\n"
         f"{', '.join(f'**{c}**' for c in color_choices)}\n\n"
         "### Examples you can type\n"
+        "- **roof white, trim black, sides black**\n"
         "- **skip** (keep defaults)\n\n"
         "### Commands\n"
         "- **/hint** (show this menu)\n"
@@ -1192,6 +1627,91 @@ def _pick_walk_in_label_from_text(text: str, available_labels: list[str]) -> Opt
     return None
 
 
+def _find_count_for_keyword(text: str, keyword_re: str) -> Optional[int]:
+    """
+    Find a count adjacent to a keyword group, e.g. "2 doors" or "doors x2".
+    """
+    t = (text or "").lower()
+    patterns = [
+        rf"\b(\d+)\s*(?:x\s*)?{keyword_re}\b",
+        rf"\b{keyword_re}\s*(?:x\s*)?(\d+)\b",
+    ]
+    for pat in patterns:
+        m = re.search(pat, t)
+        if not m:
+            continue
+        try:
+            return int(m.group(1))
+        except Exception:
+            continue
+    return None
+
+
+def _contains_any(text: str, needles: list[str]) -> bool:
+    t = (text or "").lower()
+    return any(n in t for n in needles)
+
+
+def _match_option_codes_from_text(text: str, allowed_codes: set[str]) -> list[str]:
+    """
+    Match option codes from freeform text, including spaced variants like "j trim" -> "J_TRIM".
+    """
+    raw = (text or "")
+    upper = raw.upper()
+    typed_codes = set(re.findall(r"\b[A-Z0-9_]{3,}\b", upper))
+    normalized_text = re.sub(r"[^A-Z0-9]+", "", upper)
+    picked: list[str] = []
+    for code in sorted(allowed_codes):
+        if code in typed_codes:
+            picked.append(code)
+            continue
+        norm_code = re.sub(r"[^A-Z0-9]+", "", code.upper())
+        if norm_code and norm_code in normalized_text:
+            picked.append(code)
+    return picked
+
+
+def _parse_color_assignments(text: str, allowed_colors: list[str]) -> dict[str, str]:
+    """
+    Parse color assignments like "roof white, trim black, sides black".
+    Returns keys: roof_color/trim_color/side_color (subset).
+    """
+    t = (text or "").lower()
+    allowed_lower = {c.lower(): c for c in allowed_colors}
+
+    out: dict[str, str] = {}
+
+    # Token-pair patterns: "roof white", "trim black", "side black", with optional separators.
+    for m in re.finditer(r"\b(roof|trim|side|sides)\b\s*[:=-]?\s*\b([a-z]+)\b", t):
+        field = m.group(1)
+        color = m.group(2)
+        if color in allowed_lower:
+            key = "side_color" if field in {"side", "sides"} else f"{field}_color"
+            out[key] = allowed_lower[color]
+
+    # Also allow comma-separated fragments containing both a field and a color.
+    parts = re.split(r"[,;\n]+", t)
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        field = None
+        if re.search(r"\broof\b", part):
+            field = "roof_color"
+        elif re.search(r"\btrim\b", part):
+            field = "trim_color"
+        elif re.search(r"\bsides?\b", part):
+            field = "side_color"
+        if not field:
+            continue
+        for c_lower, c in allowed_lower.items():
+            if re.search(rf"\b{re.escape(c_lower)}\b", part):
+                out[field] = c
+                break
+
+    return out
+
+
 def _parse_opening_placement_instruction(text: str) -> Optional[dict[str, object]]:
     """
     Parse a placement instruction like "door left 3" or "garage front 0".
@@ -1201,7 +1721,7 @@ def _parse_opening_placement_instruction(text: str) -> Optional[dict[str, object
     t = (text or "").lower()
     kind: Optional[str] = None
     for k in ("door", "window", "garage"):
-        if re.search(rf"\b{k}\b", t):
+        if re.search(rf"\b{k}s?\b", t):
             kind = k
             break
     if kind is None:
@@ -1222,6 +1742,47 @@ def _parse_opening_placement_instruction(text: str) -> Optional[dict[str, object
     return {"kind": kind, "side": side, "offset_ft": offset_ft}
 
 
+def _parse_opening_bulk_placement_instruction(text: str) -> Optional[dict[str, object]]:
+    """
+    Parse a bulk placement instruction like "3 doors on the left" or "all windows back".
+
+    Returns a dict with: kind, side, count (int).
+    """
+    t = (text or "").lower().strip()
+    if not t:
+        return None
+
+    kind: Optional[str] = None
+    for k in ("door", "window", "garage"):
+        if re.search(rf"\b{k}s?\b", t):
+            kind = k
+            break
+    if kind is None:
+        return None
+
+    side: Optional[str] = None
+    for s in ("front", "back", "left", "right"):
+        if re.search(rf"\b{s}\b", t):
+            side = s
+            break
+    if side is None:
+        return None
+
+    if re.search(r"\ball\b", t):
+        return {"kind": kind, "side": side, "count": -1}
+
+    m = re.search(r"\b(\d+)\b", t)
+    if not m:
+        return None
+    try:
+        count = int(m.group(1))
+    except Exception:
+        return None
+    if count <= 0:
+        return None
+    return {"kind": kind, "side": side, "count": count}
+
+
 def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: int, book: PriceBook) -> None:
     """
     Right-side (Conversation tab) Action Card: a single, conditional UI element per step.
@@ -1237,7 +1798,7 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
         with st.expander("More actions", expanded=False):
             more_cols = st.columns([1, 1, 1])
             if more_cols[0].button("Back", key="chat_cmd_back", use_container_width=True, disabled=step_index <= 0):
-                st.session_state.wizard_step = max(0, step_index - 1)
+                st.session_state["wizard_step"] = max(0, step_index - 1)
                 st.rerun()
             if more_cols[1].button("Reset", key="chat_cmd_reset", use_container_width=True):
                 st.session_state["_chat_reset_requested"] = True
@@ -1289,9 +1850,9 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
                 _chat_add(
                     role="assistant",
                     tag="ack:leg_height_action",
-                    content=f"Set leg height to **{int(st.session_state.leg_height_ft)} ft**.",
+                    content=f"Set leg height to **{int(st.session_state.get('leg_height_ft') or 0)} ft**.",
                 )
-                st.session_state.wizard_step = min(max_step_index, step_index + 1)
+                st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
                 st.rerun()
 
         elif step_key == "openings_types":
@@ -1366,7 +1927,7 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
             if st.button("Apply & continue", key="chat_action_apply_openings_types", use_container_width=True):
                 _apply_chat_action_to_wizard(step_key=step_key)
                 _chat_add(role="assistant", tag="ack:openings_types_action", content="Openings saved. Next: placement (optional).")
-                st.session_state.wizard_step = min(max_step_index, step_index + 1)
+                st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
                 st.rerun()
 
         elif step_key == "openings_placement":
@@ -1376,46 +1937,68 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
             c1, c2 = st.columns([1, 1], gap="medium")
             if c1.button("Clear placements", key="chat_action_clear_openings", use_container_width=True):
                 st.session_state[f"chat_action_dirty_{step_key}"] = True
-                st.session_state.chat_action_openings = []
+                st.session_state["chat_action_openings"] = []
                 st.rerun()
             if c2.button("Skip placement", key="chat_action_skip_openings", use_container_width=True):
                 st.session_state[f"chat_action_dirty_{step_key}"] = True
-                st.session_state.chat_action_openings = []
+                st.session_state["chat_action_openings"] = []
                 _apply_chat_action_to_wizard(step_key=step_key)
                 _chat_add(role="assistant", tag="ack:openings_placement_skip", content="Skipping placement — moving on.")
-                st.session_state.wizard_step = min(max_step_index, step_index + 1)
+                st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
                 st.rerun()
 
             with st.expander("Add opening", expanded=False):
                 a1, a2, a3 = st.columns([1, 1, 1])
                 if a1.button("Door", key="chat_action_add_door", use_container_width=True):
                     st.session_state[f"chat_action_dirty_{step_key}"] = True
-                    st.session_state.chat_action_openings.append(
-                        {"id": int(st.session_state.chat_action_opening_seq), "kind": "door", "side": "front", "offset_ft": 0}
-                    )
-                    st.session_state.chat_action_opening_seq = int(st.session_state.chat_action_opening_seq) + 1
+                    openings = st.session_state.get("chat_action_openings")
+                    if isinstance(openings, list):
+                        openings.append(
+                            {
+                                "id": int(st.session_state.get("chat_action_opening_seq") or 1),
+                                "kind": "door",
+                                "side": "front",
+                                "offset_ft": 0,
+                            }
+                        )
+                    st.session_state["chat_action_opening_seq"] = int(st.session_state.get("chat_action_opening_seq") or 1) + 1
                     st.rerun()
                 if a2.button("Window", key="chat_action_add_window", use_container_width=True):
                     st.session_state[f"chat_action_dirty_{step_key}"] = True
-                    st.session_state.chat_action_openings.append(
-                        {"id": int(st.session_state.chat_action_opening_seq), "kind": "window", "side": "right", "offset_ft": 0}
-                    )
-                    st.session_state.chat_action_opening_seq = int(st.session_state.chat_action_opening_seq) + 1
+                    openings = st.session_state.get("chat_action_openings")
+                    if isinstance(openings, list):
+                        openings.append(
+                            {
+                                "id": int(st.session_state.get("chat_action_opening_seq") or 1),
+                                "kind": "window",
+                                "side": "right",
+                                "offset_ft": 0,
+                            }
+                        )
+                    st.session_state["chat_action_opening_seq"] = int(st.session_state.get("chat_action_opening_seq") or 1) + 1
                     st.rerun()
                 if a3.button("Garage", key="chat_action_add_garage", use_container_width=True):
                     st.session_state[f"chat_action_dirty_{step_key}"] = True
-                    st.session_state.chat_action_openings.append(
-                        {"id": int(st.session_state.chat_action_opening_seq), "kind": "garage", "side": "front", "offset_ft": 0}
-                    )
-                    st.session_state.chat_action_opening_seq = int(st.session_state.chat_action_opening_seq) + 1
+                    openings = st.session_state.get("chat_action_openings")
+                    if isinstance(openings, list):
+                        openings.append(
+                            {
+                                "id": int(st.session_state.get("chat_action_opening_seq") or 1),
+                                "kind": "garage",
+                                "side": "front",
+                                "offset_ft": 0,
+                            }
+                        )
+                    st.session_state["chat_action_opening_seq"] = int(st.session_state.get("chat_action_opening_seq") or 1) + 1
                     st.rerun()
 
-            if not st.session_state.chat_action_openings:
+            openings_now = st.session_state.get("chat_action_openings")
+            if not isinstance(openings_now, list) or not openings_now:
                 st.info("No explicit placements yet (auto-placement will be used).")
             else:
-                st.caption(f"Placed openings: **{len(st.session_state.chat_action_openings)}**")
+                st.caption(f"Placed openings: **{len(openings_now)}**")
                 sides = ["front", "back", "left", "right"]
-                for idx, row in enumerate(list(st.session_state.chat_action_openings)):
+                for idx, row in enumerate(list(openings_now)):
                     if not isinstance(row, dict):
                         continue
                     oid = int(row.get("id") or (idx + 1))
@@ -1450,9 +2033,9 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
                         )
                         if r4.button("Remove", key=f"chat_action_opening_{oid}_remove", use_container_width=True):
                             st.session_state[f"chat_action_dirty_{step_key}"] = True
-                            st.session_state.chat_action_openings = [
+                            st.session_state["chat_action_openings"] = [
                                 o
-                                for o in st.session_state.chat_action_openings
+                                for o in list(st.session_state.get("chat_action_openings") or [])
                                 if not (isinstance(o, dict) and int(o.get("id") or -1) == oid)
                             ]
                             st.rerun()
@@ -1460,12 +2043,14 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
                         row["kind"] = str(kind)
                         row["side"] = str(side)
                         row["offset_ft"] = int(offset_ft)
-                    st.session_state.chat_action_openings[idx] = row
+                    openings_after = st.session_state.get("chat_action_openings")
+                    if isinstance(openings_after, list) and 0 <= idx < len(openings_after):
+                        openings_after[idx] = row
 
             if st.button("Apply & continue", key="chat_action_apply_openings_placement", use_container_width=True):
                 _apply_chat_action_to_wizard(step_key=step_key)
                 _chat_add(role="assistant", tag="ack:openings_placement_action", content="Placement saved. Next step.")
-                st.session_state.wizard_step = min(max_step_index, step_index + 1)
+                st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
                 st.rerun()
 
         elif step_key == "options":
@@ -1501,7 +2086,7 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
             if st.button("Apply & continue", key="chat_action_apply_options", use_container_width=True):
                 _apply_chat_action_to_wizard(step_key=step_key)
                 _chat_add(role="assistant", tag="ack:options_action", content="Options saved. Next step.")
-                st.session_state.wizard_step = min(max_step_index, step_index + 1)
+                st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
                 st.rerun()
 
         elif step_key == "colors":
@@ -1513,7 +2098,7 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
             if st.button("Apply & continue", key="chat_action_apply_colors", use_container_width=True):
                 _apply_chat_action_to_wizard(step_key=step_key)
                 _chat_add(role="assistant", tag="ack:colors_action", content="Colors saved. Next step.")
-                st.session_state.wizard_step = min(max_step_index, step_index + 1)
+                st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
                 st.rerun()
 
         elif step_key == "notes":
@@ -1522,7 +2107,7 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
             if st.button("Apply & continue", key="chat_action_apply_notes", use_container_width=True):
                 _apply_chat_action_to_wizard(step_key=step_key)
                 _chat_add(role="assistant", tag="ack:notes_action", content="Notes saved. Next step.")
-                st.session_state.wizard_step = min(max_step_index, step_index + 1)
+                st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
                 st.rerun()
 
         elif step_key in {"quote", "done"}:
@@ -1551,7 +2136,7 @@ def _append_lead_snapshot(*, book: PriceBook, quote) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     with (out_dir / "leads.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps(record) + "\n")
-    st.session_state.lead_saved_quote_id = quote_id
+    st.session_state["lead_saved_quote_id"] = quote_id
 
 
 def _lead_capture_form() -> None:
@@ -1565,7 +2150,7 @@ def _lead_capture_form() -> None:
     can_continue = _lead_is_valid(name=lead_name, email=lead_email)
 
     if st.button("Continue to quote builder", disabled=not can_continue, use_container_width=True):
-        st.session_state.lead_captured = True
+        st.session_state["lead_captured"] = True
         _chat_add(
             role="assistant",
             tag="lead_captured",
@@ -1580,20 +2165,19 @@ def _lead_capture_form() -> None:
 def _chat_prompt_for_current_step(step_key: str) -> str:
     prompts: dict[str, str] = {
         "built_size": (
-            "Let’s start with **Style + Size**.\n\n"
+            "Awesome — let’s build your quote.\n\n"
+            "First: **Style + Size**.\n\n"
             "- Type something like **A-Frame 12x21**\n"
             "- Or use the **Guided controls** panel on the right\n"
             "- Type **/hint** to see the menu\n"
         ),
         "leg_height": (
-            "OK — you chose a size.\n\n"
             "Next: choose **leg height**.\n\n"
             "- Reply with something like **10 ft** (or just **10**)\n"
             "- Or use the **Guided controls** panel on the right\n"
             "- Type **go back** if you want to change the previous step\n"
         ),
         "openings_types": (
-            "OK — leg height saved.\n\n"
             "Next: any **openings** to add (doors/windows/garage)?\n\n"
             "- Say **none** if you don’t want any\n"
             "- Examples: **roll-up 10x8**, **standard door**, **add 2 windows 24x36**\n"
@@ -1668,14 +2252,14 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
     if not bool(st.session_state.get("lead_captured")):
         email = _extract_email(raw)
         if email and not str(st.session_state.get("lead_email") or "").strip():
-            st.session_state.lead_email = email
+            st.session_state["lead_email"] = email
         if not email and not str(st.session_state.get("lead_name") or "").strip():
-            st.session_state.lead_name = raw.strip()
+            st.session_state["lead_name"] = raw.strip()
 
         lead_name = str(st.session_state.get("lead_name") or "").strip()
         lead_email = str(st.session_state.get("lead_email") or "").strip()
         if _lead_is_valid(name=lead_name, email=lead_email):
-            st.session_state.lead_captured = True
+            st.session_state["lead_captured"] = True
             _chat_add(
                 role="assistant",
                 tag="lead_captured_chat",
@@ -1720,17 +2304,17 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
             to_idx = -1
         if to_idx == int(step_index) and 0 <= from_idx <= max_step_index:
             st.session_state.pop("chat_last_auto_advance", None)
-            st.session_state.wizard_step = max(0, min(from_idx, max_step_index))
+            st.session_state["wizard_step"] = max(0, min(from_idx, max_step_index))
             _chat_add(role="assistant", tag="nav:go_back", content="No problem — going back so you can change that.")
-            _chat_queue_step_prompt(_wizard_step_key_for_index(int(st.session_state.wizard_step)))
+            _chat_queue_step_prompt(_wizard_step_key_for_index(int(st.session_state.get("wizard_step") or 0)))
             st.rerun()
 
     # If the user explicitly says "go back" at any time, go back a step (not advertised in /hint).
     if _back_intent(raw):
         st.session_state.pop("chat_last_auto_advance", None)
-        st.session_state.wizard_step = max(0, step_index - 1)
+        st.session_state["wizard_step"] = max(0, step_index - 1)
         _chat_add(role="assistant", tag="nav:go_back_any", content="Okay — back one step. Type your updated choice (or **/hint**).")
-        _chat_queue_step_prompt(_wizard_step_key_for_index(int(st.session_state.wizard_step)))
+        _chat_queue_step_prompt(_wizard_step_key_for_index(int(st.session_state.get("wizard_step") or 0)))
         st.rerun()
 
     # Clear any stale auto-advance marker once the user types something else.
@@ -1796,7 +2380,7 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
         if not can_advance:
             _chat_add(role="assistant", tag=f"blocked_next:{step_key}", content=reason)
             st.rerun()
-        st.session_state.wizard_step = min(max_step_index, step_index + 1)
+        st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
         st.rerun()
 
     tokens = _chat_command_tokens(raw)
@@ -1837,6 +2421,14 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
 
         # Nothing parsed: show a gentle nudge.
         if style is None and dims is None:
+            if _try_handle_with_ai_intent(
+                step_key=step_key,
+                raw=raw,
+                step_index=step_index,
+                max_step_index=max_step_index,
+                book=book,
+            ):
+                return
             _chat_add(
                 role="assistant",
                 content=(
@@ -1848,7 +2440,9 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
 
         # We require both style + size to be explicitly provided (not just defaults).
         if not has_style:
-            if dims is not None and (int(st.session_state.width_ft) != prev_w or int(st.session_state.length_ft) != prev_l):
+            if dims is not None and (
+                int(st.session_state.get("width_ft") or 0) != prev_w or int(st.session_state.get("length_ft") or 0) != prev_l
+            ):
                 _chat_add(
                     role="assistant",
                     content=(
@@ -1863,8 +2457,8 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
             st.rerun()
 
         if not has_dims:
-            if style is not None and str(st.session_state.demo_style) != prev_style:
-                _chat_add(role="assistant", content=f"Got it — **{st.session_state.demo_style}**.")
+            if style is not None and str(st.session_state.get("demo_style") or "") != prev_style:
+                _chat_add(role="assistant", content=f"Got it — **{str(st.session_state.get('demo_style') or '')}**.")
             _chat_add(role="assistant", content="What size in feet? Example: **12x21**. (Type **/hint** for examples.)")
             st.rerun()
 
@@ -1910,12 +2504,14 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
     if step_key == "leg_height":
         h = _parse_leg_height_ft(raw)
         if h is not None and h in set(book.allowed_leg_heights_ft):
-            st.session_state.leg_height_ft = h
+            st.session_state["leg_height_ft"] = h
             _chat_add(role="assistant", tag="ack:leg_height", content=f"OK — you chose **{h} ft** leg height.")
             next_idx = min(max_step_index, step_index + 1)
-            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-            st.session_state.wizard_step = next_idx
+            st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state["wizard_step"] = next_idx
             st.rerun()
+        if _try_handle_with_ai_intent(step_key=step_key, raw=raw, step_index=step_index, max_step_index=max_step_index, book=book):
+            return
         _chat_add(
             role="assistant",
             tag="help:leg_height",
@@ -1927,58 +2523,155 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
         add_count = _first_int_in_text(raw) or 1
         add_count = max(1, min(12, add_count))
         wants_add = "add" in tokens or "adding" in tokens
-        wants_door = "door" in tokens or "doors" in tokens
+        wants_door = ("door" in tokens or "doors" in tokens) or ("walk" in tokens and "in" in tokens) or ("walkin" in tokens)
         wants_window = "window" in tokens or "windows" in tokens
         wants_garage = "garage" in tokens or ("roll" in tokens and "up" in tokens)
 
         if tokens & {"none", "no", "nope"}:
-            st.session_state.walk_in_door_type = "None"
-            st.session_state.walk_in_door_count = 0
-            st.session_state.window_size = "None"
-            st.session_state.window_count = 0
-            st.session_state.garage_door_type = "None"
-            st.session_state.garage_door_count = 0
-            st.session_state.openings = []
-            st.session_state.opening_seq = 1
+            st.session_state["walk_in_door_type"] = "None"
+            st.session_state["walk_in_door_count"] = 0
+            st.session_state["window_size"] = "None"
+            st.session_state["window_count"] = 0
+            st.session_state["garage_door_type"] = "None"
+            st.session_state["garage_door_count"] = 0
+            st.session_state["openings"] = []
+            st.session_state["opening_seq"] = 1
             _chat_add(role="assistant", tag="ack:openings_types_none", content="OK — no openings.")
             next_idx = min(max_step_index, step_index + 1)
-            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-            st.session_state.wizard_step = next_idx
+            st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state["wizard_step"] = next_idx
             st.rerun()
+
+        # Precompute counts so we can avoid prematurely auto-advancing when the user
+        # asks for multiple items in one message (e.g. "2 doors and 4 windows 24x36").
+        door_count_guess = _find_count_for_keyword(raw, r"(?:walk[-\s]?in\s+)?doors?") if wants_door else None
+        window_count_guess = _find_count_for_keyword(raw, r"windows?") if wants_window else None
+        garage_count_guess = (
+            _find_count_for_keyword(raw, r"(?:garage|roll[-\s]?up)s?(?:\s+door)?s?") if wants_garage else None
+        )
+        multi_categories = sum(1 for x in (door_count_guess, window_count_guess, garage_count_guess) if isinstance(x, int))
 
         # Recognize common “type” phrasing even without an explicit "add".
         size_token = _parse_size_token(raw)
-        if size_token:
+        if size_token and multi_categories < 2:
             if ("roll-up" in raw.lower() or "rollup" in raw.lower() or wants_garage) and size_token in ROLL_UP_DOOR_OPTIONS:
-                st.session_state.garage_door_type = "Roll-up"
-                st.session_state.garage_door_size = size_token
+                st.session_state["garage_door_type"] = "Roll-up"
+                st.session_state["garage_door_size"] = size_token
                 if wants_add:
-                    st.session_state.garage_door_count = int(st.session_state.get("garage_door_count") or 0) + 1
+                    st.session_state["garage_door_count"] = int(st.session_state.get("garage_door_count") or 0) + 1
                 elif int(st.session_state.get("garage_door_count") or 0) <= 0:
-                    st.session_state.garage_door_count = 1
+                    st.session_state["garage_door_count"] = 1
                 _chat_add(
                     role="assistant",
                     tag="ack:openings_types_rollup",
                     content=f"OK — you chose **Roll-up {size_token}**.",
                 )
                 next_idx = min(max_step_index, step_index + 1)
-                st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-                st.session_state.wizard_step = next_idx
+                st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+                st.session_state["wizard_step"] = next_idx
                 st.rerun()
             if wants_window and size_token in WINDOW_OPTIONS:
-                st.session_state.window_size = size_token
+                st.session_state["window_size"] = size_token
                 if wants_add:
-                    st.session_state.window_count = int(st.session_state.get("window_count") or 0) + add_count
+                    st.session_state["window_count"] = int(st.session_state.get("window_count") or 0) + add_count
                 else:
-                    st.session_state.window_count = add_count
+                    st.session_state["window_count"] = add_count
                 _chat_add(
                     role="assistant",
                     tag="ack:openings_types_window_size",
-                    content=f"OK — you chose windows **{size_token}** × **{int(st.session_state.window_count)}**.",
+                    content=f"OK — you chose windows **{size_token}** × **{int(st.session_state.get('window_count') or 0)}**.",
                 )
                 next_idx = min(max_step_index, step_index + 1)
-                st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-                st.session_state.wizard_step = next_idx
+                st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+                st.session_state["wizard_step"] = next_idx
+                st.rerun()
+
+        # Multi-intent: handle doors + windows (and/or garage) in one message.
+        if wants_door or wants_window or wants_garage:
+            door_count = _find_count_for_keyword(raw, r"(?:walk[-\s]?in\s+)?doors?")
+            window_count = _find_count_for_keyword(raw, r"windows?")
+            garage_count = _find_count_for_keyword(raw, r"(?:garage|roll[-\s]?up)s?(?:\s+door)?s?")
+            categories = sum(1 for x in (door_count, window_count, garage_count) if isinstance(x, int))
+            if categories >= 2:
+                # Doors
+                if isinstance(door_count, int):
+                    door_labels = ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)
+                    picked = _pick_walk_in_label_from_text(raw, door_labels)
+                    if picked:
+                        st.session_state["walk_in_door_type"] = picked
+                    elif st.session_state.get("walk_in_door_type") in ("", "None") and len(door_labels) > 1:
+                        st.session_state["walk_in_door_type"] = (
+                            "Standard 36x80" if "Standard 36x80" in door_labels else door_labels[1]
+                        )
+                    if wants_add:
+                        st.session_state["walk_in_door_count"] = int(st.session_state.get("walk_in_door_count") or 0) + int(door_count)
+                    else:
+                        st.session_state["walk_in_door_count"] = int(door_count)
+
+                # Windows
+                if isinstance(window_count, int):
+                    win_labels = ["None"] + _available_accessory_labels(book, WINDOW_OPTIONS)
+                    if st.session_state.get("window_size") in ("", "None"):
+                        if size_token and size_token in WINDOW_OPTIONS:
+                            st.session_state["window_size"] = size_token
+                        elif len(win_labels) > 1:
+                            st.session_state["window_size"] = win_labels[1]
+                    if str(st.session_state.get("window_size") or "None") == "None" and len(win_labels) > 1:
+                        _chat_add(
+                            role="assistant",
+                            content=f"How big should the windows be? Choose one: {', '.join(f'**{x}**' for x in win_labels if x != 'None')}.",
+                        )
+                        st.rerun()
+                    if wants_add:
+                        st.session_state["window_count"] = int(st.session_state.get("window_count") or 0) + int(window_count)
+                    else:
+                        st.session_state["window_count"] = int(window_count)
+
+                # Garage
+                if isinstance(garage_count, int):
+                    if st.session_state.get("garage_door_type") in ("", "None"):
+                        st.session_state["garage_door_type"] = "Roll-up"
+                    if size_token and size_token in ROLL_UP_DOOR_OPTIONS:
+                        st.session_state["garage_door_size"] = size_token
+                    if wants_add:
+                        st.session_state["garage_door_count"] = int(st.session_state.get("garage_door_count") or 0) + min(4, int(garage_count))
+                    else:
+                        st.session_state["garage_door_count"] = min(8, int(garage_count))
+
+                parts = []
+                if isinstance(door_count, int):
+                    parts.append(
+                        f"Doors **{st.session_state.get('walk_in_door_type') or 'Door'}** × **{int(st.session_state.get('walk_in_door_count') or 0)}**"
+                    )
+                if isinstance(window_count, int):
+                    parts.append(
+                        f"Windows **{st.session_state.get('window_size') or 'Window'}** × **{int(st.session_state.get('window_count') or 0)}**"
+                    )
+                if isinstance(garage_count, int):
+                    parts.append(
+                        f"Garage **{st.session_state.get('garage_door_type') or 'Roll-up'} {st.session_state.get('garage_door_size') or ''}** × **{int(st.session_state.get('garage_door_count') or 0)}**"
+                    )
+                _chat_add(role="assistant", content=f"Awesome — got it. {', '.join(parts)}.")
+                next_idx = min(max_step_index, step_index + 1)
+                st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+                st.session_state["wizard_step"] = next_idx
+                st.rerun()
+
+        # Walk-in door phrasing without "add" (e.g. "standard x3", "standard walk-in door 3").
+        if (("standard" in tokens) or wants_door) and not wants_add and not wants_window and not wants_garage:
+            door_labels = ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)
+            picked = _pick_walk_in_label_from_text(raw, door_labels)
+            if picked:
+                st.session_state["walk_in_door_type"] = picked
+                st.session_state["walk_in_door_count"] = int(add_count)
+                _chat_add(
+                    role="assistant",
+                    tag="ack:openings_types_door_non_add",
+                    content=f"OK — you chose **{picked}** × **{int(st.session_state.get('walk_in_door_count') or 0)}**.",
+                )
+                next_idx = min(max_step_index, step_index + 1)
+                st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+                st.session_state["wizard_step"] = next_idx
                 st.rerun()
 
         if wants_add and (wants_door or wants_window or wants_garage):
@@ -1986,21 +2679,21 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                 door_labels = ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)
                 picked = _pick_walk_in_label_from_text(raw, door_labels)
                 if picked:
-                    st.session_state.walk_in_door_type = picked
+                    st.session_state["walk_in_door_type"] = picked
                 elif st.session_state.get("walk_in_door_type") in ("", "None") and len(door_labels) > 1:
-                    st.session_state.walk_in_door_type = door_labels[1]
-                st.session_state.walk_in_door_count = int(st.session_state.get("walk_in_door_count") or 0) + add_count
+                    st.session_state["walk_in_door_type"] = door_labels[1]
+                st.session_state["walk_in_door_count"] = int(st.session_state.get("walk_in_door_count") or 0) + add_count
 
             if wants_window:
                 win_labels = ["None"] + _available_accessory_labels(book, WINDOW_OPTIONS)
                 if st.session_state.get("window_size") in ("", "None") and len(win_labels) > 1:
-                    st.session_state.window_size = win_labels[1]
-                st.session_state.window_count = int(st.session_state.get("window_count") or 0) + add_count
+                    st.session_state["window_size"] = win_labels[1]
+                st.session_state["window_count"] = int(st.session_state.get("window_count") or 0) + add_count
 
             if wants_garage:
                 if st.session_state.get("garage_door_type") in ("", "None"):
-                    st.session_state.garage_door_type = "Roll-up"
-                st.session_state.garage_door_count = int(st.session_state.get("garage_door_count") or 0) + min(4, add_count)
+                    st.session_state["garage_door_type"] = "Roll-up"
+                st.session_state["garage_door_count"] = int(st.session_state.get("garage_door_count") or 0) + min(4, add_count)
 
             _chat_add(
                 role="assistant",
@@ -2008,12 +2701,26 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                 content="OK — openings updated.",
             )
             next_idx = min(max_step_index, step_index + 1)
-            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-            st.session_state.wizard_step = next_idx
+            st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state["wizard_step"] = next_idx
             st.rerun()
 
         # Coaching when the user mentions openings but we can't map it.
         if wants_door or wants_window or wants_garage:
+            if wants_door and _first_int_in_text(raw) is None and not _contains_any(raw, ["standard", "six panel", "nine lite"]):
+                top = _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)[:3]
+                if top:
+                    _chat_add(
+                        role="assistant",
+                        content=(
+                            "Sure — let’s add doors.\n\n"
+                            f"Pick one: {', '.join(f'**{x}**' for x in top)}\n\n"
+                            "Then tell me how many (example: **standard x2**)."
+                        ),
+                    )
+                    st.rerun()
+            if _try_handle_with_ai_intent(step_key=step_key, raw=raw, step_index=step_index, max_step_index=max_step_index, book=book):
+                return
             _chat_add(
                 role="assistant",
                 tag="help:openings_types",
@@ -2022,41 +2729,91 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
             st.rerun()
 
     if step_key == "openings_placement":
+        if tokens & {"yes", "y", "yeah", "yep", "sure"}:
+            _chat_add(
+                role="assistant",
+                content="OK — tell me **what** and **where** (example: **door left 3**, **window right 5**, **garage front 0**), or type **skip**.",
+            )
+            st.rerun()
+
         if tokens & {"skip"}:
-            st.session_state.openings = []
-            st.session_state.opening_seq = 1
+            st.session_state["openings"] = []
+            st.session_state["opening_seq"] = 1
             _chat_add(role="assistant", tag="ack:openings_placement_skip", content="OK — skipping placement.")
             next_idx = min(max_step_index, step_index + 1)
-            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-            st.session_state.wizard_step = next_idx
+            st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state["wizard_step"] = next_idx
             st.rerun()
 
         if tokens & {"none", "no", "nope"}:
-            st.session_state.openings = []
-            st.session_state.opening_seq = 1
+            st.session_state["openings"] = []
+            st.session_state["opening_seq"] = 1
             _chat_add(role="assistant", tag="ack:openings_placement_none", content="OK — no explicit placements.")
             next_idx = min(max_step_index, step_index + 1)
-            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-            st.session_state.wizard_step = next_idx
+            st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state["wizard_step"] = next_idx
+            st.rerun()
+
+        bulk = _parse_opening_bulk_placement_instruction(raw)
+        if bulk:
+            kind = str(bulk.get("kind") or "door")
+            side = str(bulk.get("side") or "front")
+            count = int(bulk.get("count") or 0)
+            if count == -1:
+                # "all doors left" → use current counts from the Types step.
+                if kind == "door":
+                    count = int(st.session_state.get("walk_in_door_count") or 0)
+                elif kind == "window":
+                    count = int(st.session_state.get("window_count") or 0)
+                elif kind == "garage":
+                    count = int(st.session_state.get("garage_door_count") or 0)
+            count = max(0, min(12, count))
+            if count <= 0:
+                _chat_add(role="assistant", content="How many should I place? Example: **3 doors left**.")
+                st.rerun()
+
+            if "openings" not in st.session_state or not isinstance(st.session_state.get("openings"), list):
+                st.session_state["openings"] = []
+            if "opening_seq" not in st.session_state:
+                st.session_state["opening_seq"] = 1
+
+            w = int(st.session_state.get("width_ft") or 0)
+            l = int(st.session_state.get("length_ft") or 0)
+            offsets = _bulk_offsets_for_wall(side=side, count=count, width_ft=w, length_ft=l)
+
+            for off in offsets:
+                oid = int(st.session_state.get("opening_seq") or 1)
+                openings_list = st.session_state.get("openings")
+                if isinstance(openings_list, list):
+                    openings_list.append({"id": oid, "kind": kind, "side": side, "offset_ft": int(off)})
+                st.session_state["opening_seq"] = oid + 1
+
+            _chat_add(
+                role="assistant",
+                tag="ack:openings_placement_bulk",
+                content=f"Placed **{count}** {kind}(s) on **{side}**. Add more, or type **/next**.",
+            )
             st.rerun()
 
         placement = _parse_opening_placement_instruction(raw)
         if placement:
             if "openings" not in st.session_state or not isinstance(st.session_state.get("openings"), list):
-                st.session_state.openings = []
+                st.session_state["openings"] = []
             if "opening_seq" not in st.session_state:
-                st.session_state.opening_seq = 1
+                st.session_state["opening_seq"] = 1
 
             oid = int(st.session_state.get("opening_seq") or 1)
-            st.session_state.openings.append(
-                {
-                    "id": oid,
-                    "kind": str(placement.get("kind") or "door"),
-                    "side": str(placement.get("side") or "front"),
-                    "offset_ft": int(placement.get("offset_ft") or 0),
-                }
-            )
-            st.session_state.opening_seq = oid + 1
+            openings_list = st.session_state.get("openings")
+            if isinstance(openings_list, list):
+                openings_list.append(
+                    {
+                        "id": oid,
+                        "kind": str(placement.get("kind") or "door"),
+                        "side": str(placement.get("side") or "front"),
+                        "offset_ft": int(placement.get("offset_ft") or 0),
+                    }
+                )
+            st.session_state["opening_seq"] = oid + 1
             _chat_add(
                 role="assistant",
                 tag="ack:openings_placement_add",
@@ -2068,6 +2825,8 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
             st.rerun()
 
         if tokens & {"door", "doors", "window", "windows", "garage"}:
+            if _try_handle_with_ai_intent(step_key=step_key, raw=raw, step_index=step_index, max_step_index=max_step_index, book=book):
+                return
             _chat_add(
                 role="assistant",
                 tag="help:openings_placement",
@@ -2076,10 +2835,36 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
             st.rerun()
 
     if step_key == "options":
+        pending_place = st.session_state.get("chat_pending_option_placement")
+        if isinstance(pending_place, dict) and isinstance(pending_place.get("codes"), list):
+            codes = [c for c in list(pending_place.get("codes") or []) if isinstance(c, str) and c]
+            if tokens & {"skip", "none", "no"}:
+                st.session_state.pop("chat_pending_option_placement", None)
+                _chat_add(role="assistant", content="OK — skipping option placement. Next step.")
+                next_idx = min(max_step_index, step_index + 1)
+                st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+                st.session_state["wizard_step"] = next_idx
+                st.rerun()
+            placement = _parse_section_placement(raw)
+            if placement is not None:
+                for code in codes:
+                    st.session_state[f"placement_{code}"] = placement
+                st.session_state.pop("chat_pending_option_placement", None)
+                _chat_add(
+                    role="assistant",
+                    content=f"Placed {', '.join(f'**{c}**' for c in codes)} on **{placement.value}**. Next step.",
+                )
+                next_idx = min(max_step_index, step_index + 1)
+                st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+                st.session_state["wizard_step"] = next_idx
+                st.rerun()
+            _chat_add(role="assistant", content="Pick a placement: **front**, **back**, **left**, **right** — or type **skip**.")
+            st.rerun()
+
         if tokens & {"none", "no", "nope"}:
-            st.session_state.include_ground_certification = False
-            st.session_state.selected_option_codes = []
-            st.session_state.extra_panel_count = 0
+            st.session_state["include_ground_certification"] = False
+            st.session_state["selected_option_codes"] = []
+            st.session_state["extra_panel_count"] = 0
             # Clear any remembered placement_* keys (dynamic UI).
             placement_keys = [k for k in st.session_state if isinstance(k, str) and k.startswith("placement_")]
             for k in placement_keys:
@@ -2089,54 +2874,111 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                     pass
             _chat_add(role="assistant", tag="ack:options_none", content="OK — no options.")
             next_idx = min(max_step_index, step_index + 1)
-            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-            st.session_state.wizard_step = next_idx
+            st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state["wizard_step"] = next_idx
             st.rerun()
 
-        # Allow typing option codes directly (space/comma separated).
         allowed_codes = set(_available_option_codes(book))
-        typed_codes = re.findall(r"\b[A-Z0-9_]{3,}\b", raw.upper())
-        selected = [c for c in typed_codes if c in allowed_codes]
+
+        # Ground certification toggle via chat.
+        if "ground" in tokens and ("cert" in tokens or "certification" in tokens):
+            if tokens & {"no", "none", "remove", "off"}:
+                st.session_state["include_ground_certification"] = False
+                _chat_add(role="assistant", content="OK — removed ground certification.")
+            else:
+                st.session_state["include_ground_certification"] = True
+                _chat_add(role="assistant", content="Added **ground certification**.")
+
+        # Allow typing option codes directly, including spaced variants like "j trim".
+        selected = _match_option_codes_from_text(raw, allowed_codes)
         if selected:
             existing = st.session_state.get("selected_option_codes")
             existing_list = list(existing) if isinstance(existing, list) else []
             for c in selected:
                 if c not in existing_list:
                     existing_list.append(c)
-            st.session_state.selected_option_codes = existing_list
+            st.session_state["selected_option_codes"] = existing_list
             _chat_add(
                 role="assistant",
                 tag="ack:options_codes",
                 content=f"OK — added option(s): {', '.join(f'**{c}**' for c in selected)}.",
             )
+
+            # Offer an optional placement prompt (since the UI supports placement per option).
+            if len(selected) == 1 and st.session_state.get(f"placement_{selected[0]}") is None:
+                st.session_state["chat_pending_option_placement"] = {"codes": list(selected)}
+                _chat_add(
+                    role="assistant",
+                    content="Where should we place that? Reply **front/back/left/right**, or **skip**.",
+                )
+                st.rerun()
+
             next_idx = min(max_step_index, step_index + 1)
-            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-            st.session_state.wizard_step = next_idx
+            st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state["wizard_step"] = next_idx
+            st.rerun()
+
+        # If they toggled ground cert without selecting other options, still advance.
+        if "ground" in tokens and ("cert" in tokens or "certification" in tokens):
+            next_idx = min(max_step_index, step_index + 1)
+            st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state["wizard_step"] = next_idx
             st.rerun()
 
     if step_key == "colors":
         if tokens & {"skip", "none"}:
             _chat_add(role="assistant", tag="ack:colors_skip", content="OK — keeping default colors.")
             next_idx = min(max_step_index, step_index + 1)
-            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-            st.session_state.wizard_step = next_idx
+            st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state["wizard_step"] = next_idx
+            st.rerun()
+        allowed_colors = ["White", "Gray", "Black", "Tan", "Sandstone", "Brown", "Red", "Burgundy", "Blue", "Green"]
+        assigns = _parse_color_assignments(raw, allowed_colors)
+        if assigns:
+            for k, v in assigns.items():
+                st.session_state[k] = v
+            missing = [k for k in ("roof_color", "trim_color", "side_color") if k not in assigns]
+            if not missing:
+                _chat_add(
+                    role="assistant",
+                    content=f"Nice — colors set (Roof **{st.session_state.get('roof_color')}**, Trim **{st.session_state.get('trim_color')}**, Sides **{st.session_state.get('side_color')}**).",
+                )
+                next_idx = min(max_step_index, step_index + 1)
+                st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+                st.session_state["wizard_step"] = next_idx
+                st.rerun()
+            prompt_bits = []
+            if "roof_color" in missing:
+                prompt_bits.append("roof")
+            if "trim_color" in missing:
+                prompt_bits.append("trim")
+            if "side_color" in missing:
+                prompt_bits.append("sides")
+            _chat_add(
+                role="assistant",
+                content=f"Got it. What {', '.join(prompt_bits)} color(s) do you want? Example: **trim black**.",
+            )
             st.rerun()
 
     if step_key == "notes":
         if tokens & {"none", "no", "nope"}:
-            st.session_state.internal_notes = ""
+            st.session_state["internal_notes"] = ""
             _chat_add(role="assistant", tag="ack:notes_none", content="OK — no notes.")
             next_idx = min(max_step_index, step_index + 1)
-            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-            st.session_state.wizard_step = next_idx
+            st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state["wizard_step"] = next_idx
             st.rerun()
         # Treat any other text as notes for this step.
-        st.session_state.internal_notes = raw
+        st.session_state["internal_notes"] = raw
         _chat_add(role="assistant", tag="ack:notes_saved", content="OK — notes saved.")
         next_idx = min(max_step_index, step_index + 1)
-        st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-        st.session_state.wizard_step = next_idx
+        st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+        st.session_state["wizard_step"] = next_idx
         st.rerun()
+
+    # Optional: last-chance AI intent recognition for steps with the most freeform input.
+    if step_key in {"built_size", "leg_height", "openings_types", "openings_placement", "options", "colors"}:
+        _try_handle_with_ai_intent(step_key=step_key, raw=raw, step_index=step_index, max_step_index=max_step_index, book=book)
 
     _chat_add(
         role="assistant",
@@ -2639,7 +3481,7 @@ def _reset_state(book: PriceBook) -> None:
     for key in _default_state(book).keys():
         st.session_state.pop(key, None)
     _init_state(book)
-    st.session_state.wizard_step = 0
+    st.session_state["wizard_step"] = 0
     st.rerun()
 
 
@@ -2866,6 +3708,16 @@ def _quote_text_summary(book: PriceBook, quote) -> str:
 def _render_sidebar(book: PriceBook, step_index: int, step_labels: list[str], quote, quote_error: Optional[str]) -> None:
     _render_logo(where="sidebar")
 
+    with st.sidebar.expander("AI (intent assist)", expanded=False):
+        st.sidebar.caption("Optional: use GPT to interpret chat input per step (style/size, openings, placement, etc.).")
+        has_key = bool(_read_secret_or_env_str("OPENAI_API_KEY"))
+        st.checkbox("Enable GPT intent assist", key="ai_intent_enabled_ui", disabled=not has_key)
+        st.text_input("Model", key="ai_intent_model_ui")
+        if not has_key:
+            st.sidebar.caption("Set `OPENAI_API_KEY` to enable.")
+        if bool(st.session_state.get("ai_intent_enabled_ui", False)) and has_key and not ai_intent.ai_intent_enabled():
+            st.sidebar.caption("Install the `openai` package (or check key/model) to activate.")
+
     lead_name = str(st.session_state.get("lead_name") or "").strip()
     lead_email = str(st.session_state.get("lead_email") or "").strip()
     lead_captured = bool(st.session_state.get("lead_captured"))
@@ -2949,14 +3801,14 @@ def _render_step_controls(step_index: int, max_index: int) -> None:
     # Only show Back if we are not at the start
     if step_index > 0:
         if col1.button("Back", key=f"wizard_back_{step_index}", use_container_width=True):
-             st.session_state.wizard_step = step_index - 1
-             st.rerun()
+            st.session_state["wizard_step"] = step_index - 1
+            st.rerun()
 
     # Only show Next if we are not at the end
     if step_index < max_index:
         if col2.button("Next", key=f"wizard_next_{step_index}", use_container_width=True):
-             st.session_state.wizard_step = step_index + 1
-             st.rerun()
+            st.session_state["wizard_step"] = step_index + 1
+            st.rerun()
 
 
 def _build_selected_options(book: PriceBook) -> tuple[SelectedOption, ...]:
@@ -3101,13 +3953,13 @@ def _render_built_size_controls(book: PriceBook, disabled: bool) -> None:
         # Map between the common demo grids: 21<->20, 26<->25, 31<->30, 36<->35
         if prev_style != "A-Frame (Vertical)" and new_style == "A-Frame (Vertical)":
             if old_len in (21, 26, 31, 36):
-                st.session_state.length_ft = old_len - 1
+                st.session_state["length_ft"] = old_len - 1
         elif prev_style == "A-Frame (Vertical)" and new_style != "A-Frame (Vertical)":
             if old_len in (20, 25, 30, 35):
-                st.session_state.length_ft = old_len + 1
-    st.session_state.demo_style_prev = st.session_state.demo_style
+                st.session_state["length_ft"] = old_len + 1
+    st.session_state["demo_style_prev"] = str(st.session_state.get("demo_style") or "")
 
-    is_vertical = st.session_state.demo_style == "A-Frame (Vertical)"
+    is_vertical = str(st.session_state.get("demo_style") or "") == "A-Frame (Vertical)"
     if is_vertical:
         st.caption("Per manufacturer rule: Vertical Buildings Are 1' Shorter Than Horizontal.")
         allowed_lengths = [20, 25, 30, 35]
@@ -3118,20 +3970,20 @@ def _render_built_size_controls(book: PriceBook, disabled: bool) -> None:
     # Streamlit requires the current session_state value to be one of the options.
     current_length = st.session_state.get("length_ft")
     if current_length not in allowed_lengths:
-        st.session_state.length_ft = allowed_lengths[0]
+        st.session_state["length_ft"] = allowed_lengths[0]
     st.selectbox("Length (ft)", options=allowed_lengths, key="length_ft", disabled=disabled)
     st.caption("Gauge is fixed for the demo (14 ga).")
 
 def _render_leg_height_controls(book: PriceBook, disabled: bool) -> None:
     leg_heights = list(book.allowed_leg_heights_ft) or [6]
     st.selectbox("Leg height (ft)", options=leg_heights, key="leg_height_ft", disabled=disabled)
-    if int(st.session_state.leg_height_ft) >= 13:
+    if int(st.session_state.get("leg_height_ft") or 0) >= 13:
         st.error("Requires Customer Lift (13' or taller).")
 
 def _render_openings_types_controls(book: PriceBook, disabled: bool) -> None:
     def _clear_advanced_openings() -> None:
         # Count-based mode should override explicit openings; clear them whenever qty changes.
-        st.session_state.openings = []
+        st.session_state["openings"] = []
 
     def _render_qty_stepper(
         *,
@@ -3156,8 +4008,8 @@ def _render_openings_types_controls(book: PriceBook, disabled: bool) -> None:
     door_left, door_right = st.columns([3, 2], gap="medium")
     with door_left:
         walk_in_labels = ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)
-        if st.session_state.walk_in_door_type not in walk_in_labels:
-            st.session_state.walk_in_door_type = "None"
+        if str(st.session_state.get("walk_in_door_type") or "None") not in walk_in_labels:
+            st.session_state["walk_in_door_type"] = "None"
         st.selectbox(
             "Walk-in door type",
             options=walk_in_labels,
@@ -3166,29 +4018,29 @@ def _render_openings_types_controls(book: PriceBook, disabled: bool) -> None:
         )
     with door_right:
         if not disabled and str(st.session_state.get("walk_in_door_type") or "None") == "None":
-            st.session_state.walk_in_door_count = 0
+            st.session_state["walk_in_door_count"] = 0
         _render_qty_stepper(
             label="Door qty",
             state_key="walk_in_door_count",
             max_value=12,
-            disabled=disabled or st.session_state.walk_in_door_type == "None",
+            disabled=disabled or str(st.session_state.get("walk_in_door_type") or "None") == "None",
         )
 
     st.markdown("**Windows**")
     win_left, win_right = st.columns([3, 2], gap="medium")
     with win_left:
         window_labels = ["None"] + _available_accessory_labels(book, WINDOW_OPTIONS)
-        if st.session_state.window_size not in window_labels:
-            st.session_state.window_size = "None"
+        if str(st.session_state.get("window_size") or "None") not in window_labels:
+            st.session_state["window_size"] = "None"
         st.selectbox("Window size", options=window_labels, key="window_size", disabled=disabled)
     with win_right:
         if not disabled and str(st.session_state.get("window_size") or "None") == "None":
-            st.session_state.window_count = 0
+            st.session_state["window_count"] = 0
         _render_qty_stepper(
             label="Window qty",
             state_key="window_count",
             max_value=24,
-            disabled=disabled or st.session_state.window_size == "None",
+            disabled=disabled or str(st.session_state.get("window_size") or "None") == "None",
         )
 
     st.markdown("**Garage doors**")
@@ -3201,38 +4053,39 @@ def _render_openings_types_controls(book: PriceBook, disabled: bool) -> None:
             disabled=disabled,
         )
     with g2:
-        if st.session_state.garage_door_type == "Roll-up":
+        if str(st.session_state.get("garage_door_type") or "None") == "Roll-up":
             roll_up_labels = _available_accessory_labels(book, ROLL_UP_DOOR_OPTIONS)
             if not roll_up_labels:
                 st.warning("No roll-up door pricing found in this pricebook.")
             else:
-                if st.session_state.garage_door_size not in roll_up_labels:
-                    st.session_state.garage_door_size = roll_up_labels[0]
+                if str(st.session_state.get("garage_door_size") or "") not in roll_up_labels:
+                    st.session_state["garage_door_size"] = roll_up_labels[0]
                 st.selectbox(
                     "Roll-up door size",
                     options=roll_up_labels,
                     key="garage_door_size",
                     disabled=disabled,
                 )
-        elif st.session_state.garage_door_type == "Frame-out":
+        elif str(st.session_state.get("garage_door_type") or "None") == "Frame-out":
             st.caption("Frame-out openings are priced per opening (when available).")
         else:
             st.caption("")
     with g3:
         if not disabled and str(st.session_state.get("garage_door_type") or "None") == "None":
-            st.session_state.garage_door_count = 0
+            st.session_state["garage_door_count"] = 0
         _render_qty_stepper(
             label="Qty",
             state_key="garage_door_count",
             max_value=4,
-            disabled=disabled or st.session_state.garage_door_type == "None",
+            disabled=disabled or str(st.session_state.get("garage_door_type") or "None") == "None",
         )
 
-    if isinstance(st.session_state.get("openings"), list) and st.session_state.openings:
+    openings = st.session_state.get("openings")
+    if isinstance(openings, list) and openings:
         st.caption("Note: you have advanced opening placement saved; this screen uses simple qty mode.")
         if st.button("Clear advanced openings", key="clear_advanced_openings", disabled=disabled, use_container_width=True):
-            st.session_state.openings = []
-            st.session_state.opening_seq = int(st.session_state.get("opening_seq") or 1)
+            st.session_state["openings"] = []
+            st.session_state["opening_seq"] = int(st.session_state.get("opening_seq") or 1)
             st.rerun()
 
 
@@ -3243,15 +4096,15 @@ def _render_openings_placement_controls(book: PriceBook, disabled: bool) -> None
     Pricing for openings remains qty/type based; placement is visual only.
     """
     if "openings" not in st.session_state or not isinstance(st.session_state.get("openings"), list):
-        st.session_state.openings = []
+        st.session_state["openings"] = []
     if "opening_seq" not in st.session_state:
-        st.session_state.opening_seq = 1
+        st.session_state["opening_seq"] = 1
 
     st.caption("Optional: place openings by wall + offset for the drawing. If empty, we auto-place.")
 
     if st.button("Clear all placements", key="openings_clear_all", disabled=disabled, use_container_width=True):
-        st.session_state.openings = []
-        st.session_state.opening_seq = int(st.session_state.get("opening_seq") or 1)
+        st.session_state["openings"] = []
+        st.session_state["opening_seq"] = int(st.session_state.get("opening_seq") or 1)
         st.rerun()
 
     # IMPORTANT: This function is often rendered inside a step expander in the Configuration tab.
@@ -3260,25 +4113,38 @@ def _render_openings_placement_controls(book: PriceBook, disabled: bool) -> None
         st.markdown("**Add opening**")
         c1, c2, c3 = st.columns([1, 1, 1])
         if c1.button("Door", key="openings_add_door", disabled=disabled, use_container_width=True):
-            st.session_state.openings.append({"id": int(st.session_state.opening_seq), "kind": "door", "side": "front", "offset_ft": 0})
-            st.session_state.opening_seq = int(st.session_state.opening_seq) + 1
+            openings_list = st.session_state.get("openings")
+            if isinstance(openings_list, list):
+                openings_list.append(
+                    {"id": int(st.session_state.get("opening_seq") or 1), "kind": "door", "side": "front", "offset_ft": 0}
+                )
+            st.session_state["opening_seq"] = int(st.session_state.get("opening_seq") or 1) + 1
             st.rerun()
         if c2.button("Window", key="openings_add_window", disabled=disabled, use_container_width=True):
-            st.session_state.openings.append({"id": int(st.session_state.opening_seq), "kind": "window", "side": "right", "offset_ft": 0})
-            st.session_state.opening_seq = int(st.session_state.opening_seq) + 1
+            openings_list = st.session_state.get("openings")
+            if isinstance(openings_list, list):
+                openings_list.append(
+                    {"id": int(st.session_state.get("opening_seq") or 1), "kind": "window", "side": "right", "offset_ft": 0}
+                )
+            st.session_state["opening_seq"] = int(st.session_state.get("opening_seq") or 1) + 1
             st.rerun()
         if c3.button("Garage", key="openings_add_garage", disabled=disabled, use_container_width=True):
-            st.session_state.openings.append({"id": int(st.session_state.opening_seq), "kind": "garage", "side": "front", "offset_ft": 0})
-            st.session_state.opening_seq = int(st.session_state.opening_seq) + 1
+            openings_list = st.session_state.get("openings")
+            if isinstance(openings_list, list):
+                openings_list.append(
+                    {"id": int(st.session_state.get("opening_seq") or 1), "kind": "garage", "side": "front", "offset_ft": 0}
+                )
+            st.session_state["opening_seq"] = int(st.session_state.get("opening_seq") or 1) + 1
             st.rerun()
 
-    if not st.session_state.openings:
+    openings_now = st.session_state.get("openings")
+    if not isinstance(openings_now, list) or not openings_now:
         st.info("No explicit placements. Auto-placement will be used.")
         return
 
-    st.caption(f"Placed openings: **{len(st.session_state.openings)}**")
+    st.caption(f"Placed openings: **{len(openings_now)}**")
     sides = ["front", "back", "left", "right"]
-    for idx, row in enumerate(list(st.session_state.openings)):
+    for idx, row in enumerate(list(openings_now)):
         if not isinstance(row, dict):
             continue
         oid = int(row.get("id") or (idx + 1))
@@ -3312,15 +4178,19 @@ def _render_openings_placement_controls(book: PriceBook, disabled: bool) -> None
                 disabled=disabled,
             )
             if r4.button("Remove", key=f"opening_{oid}_remove", disabled=disabled, use_container_width=True):
-                st.session_state.openings = [
-                    o for o in st.session_state.openings if not (isinstance(o, dict) and int(o.get("id") or -1) == oid)
+                st.session_state["openings"] = [
+                    o
+                    for o in list(st.session_state.get("openings") or [])
+                    if not (isinstance(o, dict) and int(o.get("id") or -1) == oid)
                 ]
                 st.rerun()
 
             row["kind"] = str(kind)
             row["side"] = str(side)
             row["offset_ft"] = int(offset_ft)
-        st.session_state.openings[idx] = row
+        openings_after = st.session_state.get("openings")
+        if isinstance(openings_after, list) and 0 <= idx < len(openings_after):
+            openings_after[idx] = row
 
 def _render_options_controls(book: PriceBook, disabled: bool) -> None:
     st.checkbox("Ground certification", key="include_ground_certification", disabled=disabled)
@@ -3385,7 +4255,7 @@ def _render_builder_panel(book: PriceBook, steps: list[tuple[str, str]], current
             # makes it the active step. This keeps chat + shadow-state protections aligned.
             if not is_active_step:
                 if st.button(f"Edit {label}", key=f"builder_edit_{key}", use_container_width=True):
-                    st.session_state.wizard_step = idx
+                    st.session_state["wizard_step"] = idx
                     st.rerun()
                 st.caption("This section is read-only until you make it the active step.")
 
@@ -3422,8 +4292,10 @@ def main() -> None:
     st.title("Coast to Coast - Quote Demo (Local)")
 
     _password_gate()
+    _sync_openai_intent_env_from_secrets()
 
     _init_lead_state()
+    _apply_ai_intent_env_from_ui_state()
     _sync_lead_shadow()
 
     book = _load_pricebook_from_extracted()
@@ -3456,9 +4328,9 @@ def main() -> None:
     steps = _wizard_steps()
     step_labels = [s[0] for s in steps]
     step_keys = [s[1] for s in steps]
-    step_index = int(st.session_state.wizard_step)
+    step_index = int(st.session_state.get("wizard_step") or 0)
     step_index = max(0, min(step_index, len(steps) - 1))
-    st.session_state.wizard_step = step_index
+    st.session_state["wizard_step"] = step_index
 
     defaults = _default_state(book)
 
@@ -3633,7 +4505,7 @@ def main() -> None:
                         st.session_state["export_post_status"] = 0
                         st.session_state["export_post_response"] = "QUOTE_EXPORT_URL not set; skipped POST."
 
-                    st.session_state.wizard_step = min(len(steps) - 1, step_index + 1)
+                    st.session_state["wizard_step"] = min(len(steps) - 1, step_index + 1)
                     st.rerun()
 
         if step_key == "done":

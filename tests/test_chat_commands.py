@@ -73,11 +73,156 @@ class TestChatCommands(unittest.TestCase):
         self.assertEqual(local_demo_app._parse_dimensions_ft("12 × 21"), (12, 21))
         self.assertEqual(local_demo_app._parse_dimensions_ft("12' x 21'"), (12, 21))
         self.assertEqual(local_demo_app._parse_dimensions_ft("12 by 21 feet"), (12, 21))
+        self.assertEqual(local_demo_app._parse_dimensions_ft("a frame 21 22"), (21, 22))
 
     def test_parse_style_label_is_forgiving(self) -> None:
         self.assertEqual(local_demo_app._parse_style_label("reular"), "Regular (Horizontal)")
         self.assertEqual(local_demo_app._parse_style_label("standard"), "Regular (Horizontal)")
         self.assertEqual(local_demo_app._parse_style_label("A frame vertical"), "A-Frame (Vertical)")
+
+    def test_parse_opening_bulk_placement_instruction(self) -> None:
+        self.assertEqual(
+            local_demo_app._parse_opening_bulk_placement_instruction("3 doors on the left"),
+            {"kind": "door", "side": "left", "count": 3},
+        )
+        self.assertEqual(
+            local_demo_app._parse_opening_bulk_placement_instruction("all windows back"),
+            {"kind": "window", "side": "back", "count": -1},
+        )
+
+    def test_openings_types_parses_doors_and_windows_in_one_message(self) -> None:
+        book = _load_demo_book()
+        steps = local_demo_app._wizard_steps()
+        max_step_index = len(steps) - 1
+
+        fake_session_state: _FakeSessionState = _FakeSessionState(
+            {
+                "lead_captured": True,
+                "chat_messages": [],
+                "chat_last_visible_at_ms": 0,
+                "chat_last_scrolled_at_ms": 0,
+                "wizard_step": 2,
+                "walk_in_door_type": "None",
+                "walk_in_door_count": 0,
+                "window_size": "None",
+                "window_count": 0,
+                "garage_door_type": "None",
+                "garage_door_size": "10x8",
+                "garage_door_count": 0,
+            }
+        )
+
+        def _raise_rerun() -> None:
+            raise _StopRerun()
+
+        original_session_state = local_demo_app.st.session_state
+        original_rerun = local_demo_app.st.rerun
+        try:
+            local_demo_app.st.session_state = fake_session_state  # type: ignore[assignment]
+            local_demo_app.st.rerun = _raise_rerun  # type: ignore[assignment]
+
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="add 2 doors and 4 windows 24x36",
+                    step_key="openings_types",
+                    step_index=2,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+
+            self.assertEqual(int(fake_session_state.get("walk_in_door_count") or 0), 2)
+            self.assertEqual(str(fake_session_state.get("window_size") or ""), "24x36")
+            self.assertEqual(int(fake_session_state.get("window_count") or 0), 4)
+            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 3)
+        finally:
+            local_demo_app.st.session_state = original_session_state
+            local_demo_app.st.rerun = original_rerun
+
+    def test_options_accepts_spaced_option_name_and_advances(self) -> None:
+        book = _load_demo_book()
+        steps = local_demo_app._wizard_steps()
+        max_step_index = len(steps) - 1
+
+        fake_session_state: _FakeSessionState = _FakeSessionState(
+            {
+                "lead_captured": True,
+                "chat_messages": [],
+                "chat_last_visible_at_ms": 0,
+                "chat_last_scrolled_at_ms": 0,
+                "wizard_step": 4,
+                "include_ground_certification": False,
+                "selected_option_codes": [],
+                "extra_panel_count": 0,
+            }
+        )
+
+        def _raise_rerun() -> None:
+            raise _StopRerun()
+
+        original_session_state = local_demo_app.st.session_state
+        original_rerun = local_demo_app.st.rerun
+        try:
+            local_demo_app.st.session_state = fake_session_state  # type: ignore[assignment]
+            local_demo_app.st.rerun = _raise_rerun  # type: ignore[assignment]
+
+            # First rerun should ask for placement (optional) rather than doing nothing.
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="j trim",
+                    step_key="options",
+                    step_index=4,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertIn("J_TRIM", list(fake_session_state.get("selected_option_codes") or []))
+            pending = fake_session_state.get("chat_pending_option_placement")
+            self.assertIsInstance(pending, dict)
+        finally:
+            local_demo_app.st.session_state = original_session_state
+            local_demo_app.st.rerun = original_rerun
+
+    def test_colors_parses_all_fields_and_advances(self) -> None:
+        book = _load_demo_book()
+        steps = local_demo_app._wizard_steps()
+        max_step_index = len(steps) - 1
+
+        fake_session_state: _FakeSessionState = _FakeSessionState(
+            {
+                "lead_captured": True,
+                "chat_messages": [],
+                "chat_last_visible_at_ms": 0,
+                "chat_last_scrolled_at_ms": 0,
+                "wizard_step": 5,
+                "roof_color": "White",
+                "trim_color": "White",
+                "side_color": "White",
+            }
+        )
+
+        def _raise_rerun() -> None:
+            raise _StopRerun()
+
+        original_session_state = local_demo_app.st.session_state
+        original_rerun = local_demo_app.st.rerun
+        try:
+            local_demo_app.st.session_state = fake_session_state  # type: ignore[assignment]
+            local_demo_app.st.rerun = _raise_rerun  # type: ignore[assignment]
+
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="roof white, trim black, side black",
+                    step_key="colors",
+                    step_index=5,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertEqual(str(fake_session_state.get("roof_color") or ""), "White")
+            self.assertEqual(str(fake_session_state.get("trim_color") or ""), "Black")
+            self.assertEqual(str(fake_session_state.get("side_color") or ""), "Black")
+            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 6)
+        finally:
+            local_demo_app.st.session_state = original_session_state
+            local_demo_app.st.rerun = original_rerun
 
     def test_parse_opening_placement_instruction(self) -> None:
         self.assertEqual(
