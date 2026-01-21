@@ -696,6 +696,36 @@ def _ensure_chat_action_state(*, book: PriceBook) -> None:
     if "chat_action_internal_notes" not in st.session_state:
         st.session_state["chat_action_internal_notes"] = str(st.session_state.get("internal_notes") or "")
 
+    # Streamlit selectbox widgets will raise if the current session value is not in `options`.
+    # This can happen across deploys (stale session_state), or if a key is reset to 0/None.
+    style_labels = ["Regular (Horizontal)", "A-Frame (Horizontal)", "A-Frame (Vertical)"]
+    default_style = "A-Frame (Horizontal)" if "A-Frame (Horizontal)" in style_labels else style_labels[0]
+    if str(st.session_state.get("chat_action_demo_style") or "") not in style_labels:
+        st.session_state["chat_action_demo_style"] = default_style
+
+    allowed_widths = list(book.allowed_widths_ft)
+    if allowed_widths:
+        raw_width = st.session_state.get("chat_action_width_ft")
+        coerced_width: Optional[int] = None
+        try:
+            if isinstance(raw_width, bool):
+                coerced_width = None
+            elif isinstance(raw_width, int):
+                coerced_width = raw_width
+            elif isinstance(raw_width, float) and raw_width.is_integer():
+                coerced_width = int(raw_width)
+            elif isinstance(raw_width, str):
+                s = raw_width.strip()
+                if s.isdigit():
+                    coerced_width = int(s)
+        except Exception:
+            coerced_width = None
+
+        if coerced_width in allowed_widths:
+            st.session_state["chat_action_width_ft"] = int(coerced_width)
+        else:
+            st.session_state["chat_action_width_ft"] = allowed_widths[0]
+
 
 def _sync_chat_action_from_wizard(*, book: PriceBook, step_key: str) -> None:
     """
@@ -3938,6 +3968,10 @@ def _build_selected_options_from_state(state: Mapping[str, object], book: PriceB
 
 def _render_built_size_controls(book: PriceBook, disabled: bool) -> None:
     style_labels = ["Regular (Horizontal)", "A-Frame (Horizontal)", "A-Frame (Vertical)"]
+    # Streamlit selectbox widgets will raise if the current session value is not in `options`.
+    default_style = "A-Frame (Horizontal)" if "A-Frame (Horizontal)" in style_labels else style_labels[0]
+    if str(st.session_state.get("demo_style") or "") not in style_labels:
+        st.session_state["demo_style"] = default_style
     st.selectbox("Style", options=style_labels, key="demo_style", disabled=disabled)
 
     # Preserve the user's length intent when toggling horizontal <-> vertical.
@@ -3966,6 +4000,28 @@ def _render_built_size_controls(book: PriceBook, disabled: bool) -> None:
     else:
         allowed_lengths = [21, 26, 31, 36]
 
+    allowed_widths = list(book.allowed_widths_ft)
+    if allowed_widths:
+        raw_width = st.session_state.get("width_ft")
+        coerced_width: Optional[int] = None
+        try:
+            if isinstance(raw_width, bool):
+                coerced_width = None
+            elif isinstance(raw_width, int):
+                coerced_width = raw_width
+            elif isinstance(raw_width, float) and raw_width.is_integer():
+                coerced_width = int(raw_width)
+            elif isinstance(raw_width, str):
+                s = raw_width.strip()
+                if s.isdigit():
+                    coerced_width = int(s)
+        except Exception:
+            coerced_width = None
+
+        if coerced_width in allowed_widths:
+            st.session_state["width_ft"] = int(coerced_width)
+        else:
+            st.session_state["width_ft"] = allowed_widths[0]
     st.selectbox("Width (ft)", options=list(book.allowed_widths_ft), key="width_ft", disabled=disabled)
     # Streamlit requires the current session_state value to be one of the options.
     current_length = st.session_state.get("length_ft")
