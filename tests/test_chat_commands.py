@@ -134,7 +134,67 @@ class TestChatCommands(unittest.TestCase):
             self.assertEqual(int(fake_session_state.get("walk_in_door_count") or 0), 2)
             self.assertEqual(str(fake_session_state.get("window_size") or ""), "24x36")
             self.assertEqual(int(fake_session_state.get("window_count") or 0), 4)
+            # Micro-step flow: doors+windows handled, next up is garage doors.
+            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 2)
+            self.assertEqual(str(fake_session_state.get("openings_types_stage") or ""), "garage")
+
+            # Finish the last micro-step (garage) with "none" → advance to placement step.
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="none",
+                    step_key="openings_types",
+                    step_index=2,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
             self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 3)
+        finally:
+            local_demo_app.st.session_state = original_session_state
+            local_demo_app.st.rerun = original_rerun
+
+    def test_openings_types_parses_rollup_count(self) -> None:
+        book = _load_demo_book()
+        steps = local_demo_app._wizard_steps()
+        max_step_index = len(steps) - 1
+
+        fake_session_state: _FakeSessionState = _FakeSessionState(
+            {
+                "lead_captured": True,
+                "chat_messages": [],
+                "chat_last_visible_at_ms": 0,
+                "chat_last_scrolled_at_ms": 0,
+                "wizard_step": 2,
+                "walk_in_door_type": "None",
+                "walk_in_door_count": 0,
+                "window_size": "None",
+                "window_count": 0,
+                "garage_door_type": "None",
+                "garage_door_size": "10x8",
+                "garage_door_count": 0,
+            }
+        )
+
+        def _raise_rerun() -> None:
+            raise _StopRerun()
+
+        original_session_state = local_demo_app.st.session_state
+        original_rerun = local_demo_app.st.rerun
+        try:
+            local_demo_app.st.session_state = fake_session_state  # type: ignore[assignment]
+            local_demo_app.st.rerun = _raise_rerun  # type: ignore[assignment]
+
+            # "2 roll-up 10x8" should set quantity to 2 (not 1).
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="2 roll-up 10x8",
+                    step_key="openings_types",
+                    step_index=2,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertEqual(str(fake_session_state.get("garage_door_type") or ""), "Roll-up")
+            self.assertEqual(str(fake_session_state.get("garage_door_size") or ""), "10x8")
+            self.assertEqual(int(fake_session_state.get("garage_door_count") or 0), 2)
         finally:
             local_demo_app.st.session_state = original_session_state
             local_demo_app.st.rerun = original_rerun
@@ -166,7 +226,17 @@ class TestChatCommands(unittest.TestCase):
             local_demo_app.st.session_state = fake_session_state  # type: ignore[assignment]
             local_demo_app.st.rerun = _raise_rerun  # type: ignore[assignment]
 
-            # First rerun should ask for placement (optional) rather than doing nothing.
+            # Micro-step 1: ground certification question.
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="no",
+                    step_key="options",
+                    step_index=4,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+
+            # Micro-step 2: choose J-Trim (spaced input) → should prompt for placement (optional) rather than doing nothing.
             with self.assertRaises(_StopRerun):
                 local_demo_app._handle_chat_input(
                     text="j trim",
@@ -178,6 +248,57 @@ class TestChatCommands(unittest.TestCase):
             self.assertIn("J_TRIM", list(fake_session_state.get("selected_option_codes") or []))
             pending = fake_session_state.get("chat_pending_option_placement")
             self.assertIsInstance(pending, dict)
+        finally:
+            local_demo_app.st.session_state = original_session_state
+            local_demo_app.st.rerun = original_rerun
+
+    def test_options_parses_double_leg_alias(self) -> None:
+        book = _load_demo_book()
+        steps = local_demo_app._wizard_steps()
+        max_step_index = len(steps) - 1
+
+        fake_session_state: _FakeSessionState = _FakeSessionState(
+            {
+                "lead_captured": True,
+                "chat_messages": [],
+                "chat_last_visible_at_ms": 0,
+                "chat_last_scrolled_at_ms": 0,
+                "wizard_step": 4,
+                "include_ground_certification": False,
+                "selected_option_codes": [],
+                "extra_panel_count": 0,
+            }
+        )
+
+        def _raise_rerun() -> None:
+            raise _StopRerun()
+
+        original_session_state = local_demo_app.st.session_state
+        original_rerun = local_demo_app.st.rerun
+        try:
+            local_demo_app.st.session_state = fake_session_state  # type: ignore[assignment]
+            local_demo_app.st.rerun = _raise_rerun  # type: ignore[assignment]
+
+            # Answer ground certification first.
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="no",
+                    step_key="options",
+                    step_index=4,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+
+            # Then choose "double leg" (alias for DOUBLE_LEG_UP_TO_12).
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="double leg",
+                    step_key="options",
+                    step_index=4,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertIn("DOUBLE_LEG_UP_TO_12", list(fake_session_state.get("selected_option_codes") or []))
         finally:
             local_demo_app.st.session_state = original_session_state
             local_demo_app.st.rerun = original_rerun
@@ -498,6 +619,18 @@ class TestChatCommands(unittest.TestCase):
             step_index = max(0, min(step_index, max_step_index))
             step_key = str(steps[step_index][1])
             active_keys = _active_keys_for_step(step_key)
+            last_auto = fake_session_state.get("chat_last_auto_advance")
+            if isinstance(last_auto, dict):
+                try:
+                    from_idx = int(last_auto.get("from_step_index"))
+                    to_idx = int(last_auto.get("to_step_index"))
+                except Exception:
+                    from_idx = -1
+                    to_idx = -1
+                if not bool(last_auto.get("shadow_committed")) and to_idx == int(step_index) and 0 <= from_idx <= max_step_index:
+                    prev_key = str(steps[from_idx][1])
+                    active_keys.update(_active_keys_for_step(prev_key))
+                    fake_session_state["chat_last_auto_advance"] = {**last_auto, "shadow_committed": True}
             local_demo_app._sync_shadow_state(defaults, active_keys=active_keys)
             return local_demo_app._effective_state(defaults, active_keys=active_keys)
 
@@ -574,10 +707,23 @@ class TestChatCommands(unittest.TestCase):
                     max_step_index=max_step_index,
                     book=book,
                 )
-            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 3)
+            # Micro-step flow: doors+windows handled; "garage" is the next micro-step.
+            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 2)
+            self.assertEqual(str(fake_session_state.get("openings_types_stage") or ""), "garage")
             self.assertEqual(int(fake_session_state.get("walk_in_door_count") or 0), 2)
             self.assertEqual(str(fake_session_state.get("window_size") or ""), "24x36")
             self.assertEqual(int(fake_session_state.get("window_count") or 0), 4)
+
+            # Finish the garage micro-step (none) → advance to placement.
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="none",
+                    step_key="openings_types",
+                    step_index=2,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 3)
             _sync_like_main()
 
             # Step 3: Openings placement (bulk place).
@@ -634,7 +780,20 @@ class TestChatCommands(unittest.TestCase):
             self.assertEqual(int(state_after_restore.get("window_count") or 0), 4)
             self.assertEqual(len(list(state_after_restore.get("openings") or [])), 6)
 
-            # Step 4: Options — add J_TRIM (should prompt for placement, not advance yet).
+            # Step 4: Options — micro-step 1 (ground certification).
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="no",
+                    step_key="options",
+                    step_index=4,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 4)
+            self.assertFalse(bool(fake_session_state.get("include_ground_certification")))
+            _sync_like_main()
+
+            # Step 4: Options — micro-step 2 (J_TRIM) should prompt for placement, not advance yet.
             with self.assertRaises(_StopRerun):
                 local_demo_app._handle_chat_input(
                     text="j trim",
@@ -663,15 +822,27 @@ class TestChatCommands(unittest.TestCase):
             # Step 5: Colors.
             with self.assertRaises(_StopRerun):
                 local_demo_app._handle_chat_input(
-                    text="roof white, trim black, side black",
+                    text="roof - black - sides gray - trim tan",
                     step_key="colors",
                     step_index=5,
                     max_step_index=max_step_index,
                     book=book,
                 )
             self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 6)
-            self.assertEqual(str(fake_session_state.get("trim_color") or ""), "Black")
+            self.assertEqual(str(fake_session_state.get("roof_color") or ""), "Black")
+            self.assertEqual(str(fake_session_state.get("trim_color") or ""), "Tan")
+            self.assertEqual(str(fake_session_state.get("side_color") or ""), "Gray")
             _sync_like_main()
+
+            # Regression: chat auto-advance can skip a rerun on the Colors step, so shadow-state must still
+            # capture the chosen colors before later reruns/reset-like behavior.
+            fake_session_state["roof_color"] = "White"
+            fake_session_state["trim_color"] = "White"
+            fake_session_state["side_color"] = "White"
+            restored = _sync_like_main()
+            self.assertEqual(str(restored.get("roof_color") or ""), "Black")
+            self.assertEqual(str(restored.get("trim_color") or ""), "Tan")
+            self.assertEqual(str(restored.get("side_color") or ""), "Gray")
 
             # Step 6: Notes.
             with self.assertRaises(_StopRerun):
