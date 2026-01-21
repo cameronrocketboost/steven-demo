@@ -101,6 +101,9 @@ def _password_gate() -> None:
             st.rerun()
         return
 
+    # Branding even before login.
+    _render_logo(where="sidebar")
+
     st.markdown("## Login")
     st.caption("Enter the password to access this demo.")
 
@@ -785,8 +788,8 @@ def _chat_input_placeholder(step_key: str) -> str:
         "options": "Type an option code, “none”, or “/hint”…",
         "colors": "Type “skip” to keep defaults, or “/hint”…",
         "notes": "Type notes, “none”, or “/hint”…",
-        "quote": "Type “/back” to edit, or “/reset” to start over…",
-        "done": "Type “/reset” to start a new quote…",
+        "quote": "Review the quote in the Configuration tab (type “/hint” for help)…",
+        "done": "All set (type “/hint” for what you can do next)…",
     }
     return placeholders.get(step_key, "Type here…")
 
@@ -836,90 +839,178 @@ def _chat_menu_for_step(step_key: str, book: PriceBook) -> str:
     """
     Return a short, step-specific help "menu" shown when the user types /hint.
     """
+    style_now = str(st.session_state.get("demo_style") or "")
+    width_now = int(st.session_state.get("width_ft") or 0)
+    length_now = int(st.session_state.get("length_ft") or 0)
+    leg_height_now = int(st.session_state.get("leg_height_ft") or 0)
+
     allowed_leg_heights = ", ".join(str(x) for x in (list(book.allowed_leg_heights_ft) or [6]))
+    allowed_widths = ", ".join(str(x) for x in list(book.allowed_widths_ft))
+    horizontal_lengths = ", ".join(str(x) for x in [21, 26, 31, 36])
+    vertical_lengths = ", ".join(str(x) for x in [20, 25, 30, 35])
+
+    pending = st.session_state.get("chat_pending_suggestion")
+    has_pending_size_suggestion = isinstance(pending, dict) and pending.get("kind") == "built_size"
+    apply_cancel = ""
+    if has_pending_size_suggestion:
+        apply_cancel = (
+            "\n"
+            "- **/apply** (accept the suggested priced size)\n"
+            "- **/cancel** (keep what you typed)\n"
+        )
+
     built_size = (
-        "What I need:\n"
-        "- **Style** (Regular / A-Frame Horizontal / A-Frame Vertical)\n"
-        "- **Size** in feet (example: **12x21**)\n\n"
-        "Examples:\n"
+        "## Built & Size — menu\n\n"
+        "**What we’re doing**: pick the exact building **style** and **size**.\n\n"
+        "### Your current selection\n"
+        f"- **Style**: **{style_now or '(not set yet)'}**\n"
+        f"- **Size**: **{width_now}x{length_now} ft**\n\n"
+        "### Options (pick one style)\n"
+        "- **Regular (Horizontal)**\n"
+        "- **A-Frame (Horizontal)**\n"
+        "- **A-Frame (Vertical)**\n\n"
+        "### Allowed sizes\n"
+        f"- **Widths (ft)**: **{allowed_widths}**\n"
+        f"- **Lengths for Regular / A-Frame Horizontal (ft)**: **{horizontal_lengths}**\n"
+        f"- **Lengths for A-Frame Vertical (ft)**: **{vertical_lengths}**\n\n"
+        "### Examples you can type\n"
         "- **A-Frame 12x21**\n"
         "- **Regular 18x26**\n\n"
-        "Commands:\n"
-        "- **/next** (only advances when style + size are set)\n"
-        "- **/back**\n"
-        "- **/reset**\n"
+        "### How pricing works if your size isn’t listed\n"
+        "If you type a size that isn’t in the price book, we’ll suggest the **next size up** for pricing.\n\n"
+        "### Commands\n"
+        "- **/hint** (show this menu)\n"
+        "- **/next** (only advances once **style + size** are set)\n"
+        f"{apply_cancel}"
     )
+
     leg_height = (
-        "What I need:\n"
-        f"- **Leg height** (allowed: **{allowed_leg_heights}**)\n\n"
-        "Examples:\n"
-        "- **10 ft**\n\n"
-        "Commands:\n"
+        "## Leg Height — menu\n\n"
+        "**What we’re doing**: choose your building’s **leg height**.\n\n"
+        "### Your current selection\n"
+        f"- **Leg height**: **{leg_height_now} ft**\n\n"
+        "### Allowed values\n"
+        f"- **Leg height (ft)**: **{allowed_leg_heights}**\n\n"
+        "### Examples you can type\n"
+        "- **10 ft**\n"
+        "- **12 ft**\n\n"
+        "### Commands\n"
+        "- **/hint** (show this menu)\n"
         "- **/next**\n"
-        "- **/back**\n"
-        "- **/reset**\n"
     )
+
+    walk_in_labels = ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)
+    window_labels = ["None"] + _available_accessory_labels(book, WINDOW_OPTIONS)
+    rollup_labels = ["None"] + _available_accessory_labels(book, ROLL_UP_DOOR_OPTIONS)
+
     openings_types = (
-        "What we’ll do here:\n"
-        "- Choose **types + quantities** (doors, windows, garage doors)\n\n"
-        "Examples:\n"
+        "## Openings (Types) — menu\n\n"
+        "**What we’re doing**: choose **types + quantities** (doors, windows, garage doors).\n\n"
+        "### Your current selection\n"
+        f"- **Walk-in door**: **{st.session_state.get('walk_in_door_type') or 'None'}** × **{int(st.session_state.get('walk_in_door_count') or 0)}**\n"
+        f"- **Windows**: **{st.session_state.get('window_size') or 'None'}** × **{int(st.session_state.get('window_count') or 0)}**\n"
+        f"- **Garage door**: **{st.session_state.get('garage_door_type') or 'None'}**"
+        f" {st.session_state.get('garage_door_size') or ''} × **{int(st.session_state.get('garage_door_count') or 0)}**\n\n"
+        "### Options you can choose (from this price book)\n"
+        f"- **Walk-in door types**: {', '.join(f'**{x}**' for x in walk_in_labels)}\n"
+        f"- **Window sizes**: {', '.join(f'**{x}**' for x in window_labels)}\n"
+        f"- **Roll-up door sizes**: {', '.join(f'**{x}**' for x in rollup_labels)}\n\n"
+        "### Examples you can type\n"
         "- **add 1 door**\n"
         "- **standard door x2**\n"
         "- **add 2 windows 24x36**\n"
         "- **roll-up 10x8**\n"
         "- **none**\n\n"
-        "Commands:\n"
-        "- **/next** (go to placement)\n"
-        "- **/back**\n"
-        "- **/reset**\n"
+        "### Commands\n"
+        "- **/hint** (show this menu)\n"
+        "- **/next** (go to placement — optional)\n"
     )
+
+    w = int(st.session_state.get("width_ft") or 0)
+    l = int(st.session_state.get("length_ft") or 0)
+    openings_count = len(st.session_state.get("openings") or []) if isinstance(st.session_state.get("openings"), list) else 0
     openings_placement = (
-        "What we’ll do here:\n"
-        "- (Optional) place openings by **wall + offset** for the drawing\n\n"
-        "Examples:\n"
+        "## Openings (Placement) — menu\n\n"
+        "**Optional**: place openings by **wall + offset** so the drawing matches what you mean.\n\n"
+        "### Your current selection\n"
+        f"- **Placed openings**: **{int(openings_count)}**\n\n"
+        "### How placement works\n"
+        "- Pick a **wall**: **front / back / left / right**\n"
+        "- Give an **offset (ft)** along that wall (0 is the start of the wall)\n"
+        f"- Current building size: **{w}x{l} ft** (front/back wall length = width; left/right wall length = length)\n\n"
+        "### Examples you can type\n"
         "- **door left 3**\n"
         "- **window right 5**\n"
         "- **garage front 0**\n"
-        "- **skip** (use automatic placement)\n\n"
-        "Commands:\n"
+        "- **skip** (use automatic placement)\n"
+        "- **none** (no explicit placements)\n\n"
+        "### Commands\n"
+        "- **/hint** (show this menu)\n"
         "- **/next**\n"
-        "- **/back**\n"
-        "- **/reset**\n"
     )
+
+    option_codes = _available_option_codes(book)
+    selected_codes = list(st.session_state.get("selected_option_codes") or []) if isinstance(st.session_state.get("selected_option_codes"), list) else []
+    options_list = "\n".join(f"- **{code}**" for code in option_codes) if option_codes else "- (No option codes found in this price book.)"
     options = (
-        "What we’ll do here:\n"
-        "- Add optional upgrades (or say **none**)\n\n"
-        "Commands:\n"
+        "## Options — menu\n\n"
+        "**What we’re doing**: add optional upgrades.\n\n"
+        "### Your current selection\n"
+        f"- **Ground certification**: **{bool(st.session_state.get('include_ground_certification'))}**\n"
+        f"- **Selected option codes**: {', '.join(f'**{c}**' for c in selected_codes) if selected_codes else '**(none)**'}\n\n"
+        "### All available option codes (this price book)\n"
+        f"{options_list}\n\n"
+        "### Examples you can type\n"
+        "- **none**\n\n"
+        "### Commands\n"
+        "- **/hint** (show this menu)\n"
         "- **/next**\n"
-        "- **/back**\n"
-        "- **/reset**\n"
     )
+
+    color_choices = ["White", "Gray", "Black", "Tan", "Sandstone", "Brown", "Red", "Burgundy", "Blue", "Green"]
     colors = (
-        "What we’ll do here:\n"
-        "- Pick colors (or say **skip** to keep defaults)\n\n"
-        "Commands:\n"
+        "## Colors — menu\n\n"
+        "**What we’re doing**: choose colors for roof/trim/sides.\n\n"
+        "### Your current selection\n"
+        f"- **Roof**: **{st.session_state.get('roof_color') or 'White'}**\n"
+        f"- **Trim**: **{st.session_state.get('trim_color') or 'White'}**\n"
+        f"- **Sides**: **{st.session_state.get('side_color') or 'White'}**\n\n"
+        "### All available colors\n"
+        f"{', '.join(f'**{c}**' for c in color_choices)}\n\n"
+        "### Examples you can type\n"
+        "- **skip** (keep defaults)\n\n"
+        "### Commands\n"
+        "- **/hint** (show this menu)\n"
         "- **/next**\n"
-        "- **/back**\n"
-        "- **/reset**\n"
     )
+
     notes = (
-        "What we’ll do here:\n"
-        "- Add internal notes (or say **none**)\n\n"
-        "Commands:\n"
+        "## Notes — menu\n\n"
+        "**What we’re doing**: add any internal notes (demo-only).\n\n"
+        "### Examples you can type\n"
+        "- **Customer wants install next month**\n"
+        "- **none**\n\n"
+        "### Commands\n"
+        "- **/hint** (show this menu)\n"
         "- **/next**\n"
-        "- **/back**\n"
-        "- **/reset**\n"
     )
+
     quote = (
-        "You’re looking at the quote.\n\n"
-        "Commands:\n"
-        "- **/back** (edit)\n"
-        "- **/reset** (start over)\n"
+        "## Quote — menu\n\n"
+        "Your quote is ready. Review it in the **Configuration** tab.\n\n"
+        "### Commands\n"
+        "- **/hint** (show this menu)\n"
+        "- **/next** (finish)\n"
     )
+
     done = (
-        "All set.\n\n"
-        "Commands:\n"
-        "- **/reset** (start a new quote)\n"
+        "## Done — menu\n\n"
+        "You’re done with the guided quote flow.\n\n"
+        "### What you can do next\n"
+        "- Review the quote in the **Configuration** tab\n"
+        "- Use **Reset quote** in the sidebar to start over\n\n"
+        "### Commands\n"
+        "- **/hint** (show this menu)\n"
     )
     menus: dict[str, str] = {
         "built_size": built_size,
@@ -932,7 +1023,7 @@ def _chat_menu_for_step(step_key: str, book: PriceBook) -> str:
         "quote": quote,
         "done": done,
     }
-    return menus.get(step_key, "Type **/next**, **/back**, **/reset**, or **/hint**.")
+    return menus.get(step_key, "Type **/hint** for the menu, or **/next** to continue.")
 
 
 def _next_size_up(value: int, allowed: list[int]) -> Optional[int]:
@@ -1365,7 +1456,7 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
                 st.rerun()
 
         elif step_key in {"quote", "done"}:
-            st.info("Review the quote in the Configuration tab. Type **back** to edit, or **reset** to start over.")
+            st.info("Review the quote in the Configuration tab. Use the sidebar **Reset quote** if you want to start over.")
 
 
 def _append_lead_snapshot(*, book: PriceBook, quote) -> None:
@@ -1430,10 +1521,10 @@ def _chat_prompt_for_current_step(step_key: str) -> str:
         "options": "Any **options** to add? (Or say **none**)",
         "colors": "Pick **colors** (or say **skip** to keep defaults).",
         "notes": "Any notes I should include? (Or say **none**)",
-        "quote": "Here’s the quote. Type **/back** to edit, or **/reset** to start a new quote.",
-        "done": "Thanks — a member of our team will be in contact. Type **/reset** to start a new quote.",
+        "quote": "Here’s the quote. Review it in the **Configuration** tab. Type **/hint** if you want the menu.",
+        "done": "Thanks — a member of our team will be in contact. Type **/hint** if you want the menu.",
     }
-    return prompts.get(step_key, "Type **/next** to continue, **/back** to go back, or **/hint**.")
+    return prompts.get(step_key, "Type **/next** to continue, or **/hint** for the menu.")
 
 
 def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_index: int, book: PriceBook) -> None:
@@ -1479,6 +1570,41 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
     slash_cmd = _chat_slash_command(raw)
     bare_cmd = _chat_bare_command(raw)
 
+    def _back_intent(t: str) -> bool:
+        s = (t or "").strip().lower()
+        return s in {"back", "go back", "goback", "previous", "prev"}
+
+    def _no_intent(t: str) -> bool:
+        s = (t or "").strip().lower()
+        return s in {"no", "nope"}
+
+    # If we just auto-advanced and the very next user input is "no" or "go back",
+    # return to the previous step so they can overwrite.
+    last_auto = st.session_state.get("chat_last_auto_advance")
+    if (_back_intent(raw) or _no_intent(raw)) and isinstance(last_auto, dict):
+        try:
+            from_idx = int(last_auto.get("from_step_index"))
+            to_idx = int(last_auto.get("to_step_index"))
+        except Exception:
+            from_idx = -1
+            to_idx = -1
+        if to_idx == int(step_index) and 0 <= from_idx <= max_step_index:
+            st.session_state.pop("chat_last_auto_advance", None)
+            st.session_state.wizard_step = max(0, min(from_idx, max_step_index))
+            _chat_add(role="assistant", tag="nav:go_back", content="No problem — going back so you can change that.")
+            st.rerun()
+
+    # If the user explicitly says "go back" at any time, go back a step (not advertised in /hint).
+    if _back_intent(raw):
+        st.session_state.pop("chat_last_auto_advance", None)
+        st.session_state.wizard_step = max(0, step_index - 1)
+        _chat_add(role="assistant", tag="nav:go_back_any", content="Okay — back one step. Type your updated choice (or **/hint**).")
+        st.rerun()
+
+    # Clear any stale auto-advance marker once the user types something else.
+    if st.session_state.get("chat_last_auto_advance") is not None:
+        st.session_state.pop("chat_last_auto_advance", None)
+
     # Intentional command handling.
     if slash_cmd in {"hint", "help"}:
         _chat_add(role="assistant", tag=f"hint:{step_key}", content=_chat_menu_for_step(step_key, book))
@@ -1515,14 +1641,6 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
             )
             st.rerun()
         _chat_add(role="assistant", tag="no_suggestion_to_cancel", content="Nothing to cancel. Type **/hint** for help.")
-        st.rerun()
-
-    if slash_cmd in {"reset", "restart"}:
-        st.session_state["_chat_reset_requested"] = True
-        st.rerun()
-
-    if slash_cmd == "back" or bare_cmd == "back":
-        st.session_state.wizard_step = max(0, step_index - 1)
         st.rerun()
 
     if slash_cmd == "next" or bare_cmd == "next":
@@ -1601,11 +1719,13 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                     role="assistant",
                     tag="ack:built_size_complete",
                     content=(
-                        f"Locked in: **{st.session_state.demo_style}**, "
+                        f"OK — you chose **{st.session_state.demo_style}**, "
                         f"**{int(st.session_state.width_ft)}x{int(st.session_state.length_ft)} ft**."
                     ),
                 )
-                _chat_add(role="assistant", tag="coach:built_size_next", content="When you’re ready, type **/next** for leg height.")
+                next_idx = min(max_step_index, step_index + 1)
+                st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+                st.session_state.wizard_step = next_idx
                 st.rerun()
             _chat_add(role="assistant", tag="help:built_size_incomplete", content=reason)
             st.rerun()
@@ -1624,12 +1744,10 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
         h = _parse_leg_height_ft(raw)
         if h is not None and h in set(book.allowed_leg_heights_ft):
             st.session_state.leg_height_ft = h
-            _chat_add(role="assistant", tag="ack:leg_height", content=f"Perfect — **{h} ft** leg height.")
-            _chat_add(
-                role="assistant",
-                tag="coach:leg_height_next",
-                content="Next is openings. Type **/next** (or **/hint**).",
-            )
+            _chat_add(role="assistant", tag="ack:leg_height", content=f"OK — you chose **{h} ft** leg height.")
+            next_idx = min(max_step_index, step_index + 1)
+            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state.wizard_step = next_idx
             st.rerun()
         _chat_add(
             role="assistant",
@@ -1655,7 +1773,10 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
             st.session_state.garage_door_count = 0
             st.session_state.openings = []
             st.session_state.opening_seq = 1
-            _chat_add(role="assistant", tag="ack:openings_types_none", content="No openings — type **/next** to continue.")
+            _chat_add(role="assistant", tag="ack:openings_types_none", content="OK — no openings.")
+            next_idx = min(max_step_index, step_index + 1)
+            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state.wizard_step = next_idx
             st.rerun()
 
         # Recognize common “type” phrasing even without an explicit "add".
@@ -1671,8 +1792,11 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                 _chat_add(
                     role="assistant",
                     tag="ack:openings_types_rollup",
-                    content=f"Set garage door to **Roll-up {size_token}**. Type **/next** for placement (optional).",
+                    content=f"OK — you chose **Roll-up {size_token}**.",
                 )
+                next_idx = min(max_step_index, step_index + 1)
+                st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+                st.session_state.wizard_step = next_idx
                 st.rerun()
             if wants_window and size_token in WINDOW_OPTIONS:
                 st.session_state.window_size = size_token
@@ -1683,8 +1807,11 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                 _chat_add(
                     role="assistant",
                     tag="ack:openings_types_window_size",
-                    content=f"Set window size to **{size_token}** and qty to **{int(st.session_state.window_count)}**. Type **/next** for placement (optional).",
+                    content=f"OK — you chose windows **{size_token}** × **{int(st.session_state.window_count)}**.",
                 )
+                next_idx = min(max_step_index, step_index + 1)
+                st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+                st.session_state.wizard_step = next_idx
                 st.rerun()
 
         if wants_add and (wants_door or wants_window or wants_garage):
@@ -1711,8 +1838,11 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
             _chat_add(
                 role="assistant",
                 tag="ack:openings_types_add",
-                content="Updated openings. Next is optional placement for the drawing — type **/next** (or **/hint**).",
+                content="OK — openings updated.",
             )
+            next_idx = min(max_step_index, step_index + 1)
+            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state.wizard_step = next_idx
             st.rerun()
 
         # Coaching when the user mentions openings but we can't map it.
@@ -1728,13 +1858,19 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
         if tokens & {"skip"}:
             st.session_state.openings = []
             st.session_state.opening_seq = 1
-            _chat_add(role="assistant", tag="ack:openings_placement_skip", content="Skipping placement — type **/next** to continue.")
+            _chat_add(role="assistant", tag="ack:openings_placement_skip", content="OK — skipping placement.")
+            next_idx = min(max_step_index, step_index + 1)
+            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state.wizard_step = next_idx
             st.rerun()
 
         if tokens & {"none", "no", "nope"}:
             st.session_state.openings = []
             st.session_state.opening_seq = 1
-            _chat_add(role="assistant", tag="ack:openings_placement_none", content="No explicit placements — type **/next** to continue.")
+            _chat_add(role="assistant", tag="ack:openings_placement_none", content="OK — no explicit placements.")
+            next_idx = min(max_step_index, step_index + 1)
+            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state.wizard_step = next_idx
             st.rerun()
 
         placement = _parse_opening_placement_instruction(raw)
@@ -1784,28 +1920,61 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                     del st.session_state[k]
                 except Exception:
                     pass
-            _chat_add(role="assistant", tag="ack:options_none", content="No options. Type **/next** to continue (or **/hint**).")
+            _chat_add(role="assistant", tag="ack:options_none", content="OK — no options.")
+            next_idx = min(max_step_index, step_index + 1)
+            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state.wizard_step = next_idx
+            st.rerun()
+
+        # Allow typing option codes directly (space/comma separated).
+        allowed_codes = set(_available_option_codes(book))
+        typed_codes = re.findall(r"\b[A-Z0-9_]{3,}\b", raw.upper())
+        selected = [c for c in typed_codes if c in allowed_codes]
+        if selected:
+            existing = st.session_state.get("selected_option_codes")
+            existing_list = list(existing) if isinstance(existing, list) else []
+            for c in selected:
+                if c not in existing_list:
+                    existing_list.append(c)
+            st.session_state.selected_option_codes = existing_list
+            _chat_add(
+                role="assistant",
+                tag="ack:options_codes",
+                content=f"OK — added option(s): {', '.join(f'**{c}**' for c in selected)}.",
+            )
+            next_idx = min(max_step_index, step_index + 1)
+            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state.wizard_step = next_idx
             st.rerun()
 
     if step_key == "colors":
         if tokens & {"skip", "none"}:
-            _chat_add(role="assistant", tag="ack:colors_skip", content="Keeping default colors. Type **/next** to continue (or **/hint**).")
+            _chat_add(role="assistant", tag="ack:colors_skip", content="OK — keeping default colors.")
+            next_idx = min(max_step_index, step_index + 1)
+            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state.wizard_step = next_idx
             st.rerun()
 
     if step_key == "notes":
         if tokens & {"none", "no", "nope"}:
             st.session_state.internal_notes = ""
-            _chat_add(role="assistant", tag="ack:notes_none", content="No notes. Type **/next** to continue (or **/hint**).")
+            _chat_add(role="assistant", tag="ack:notes_none", content="OK — no notes.")
+            next_idx = min(max_step_index, step_index + 1)
+            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state.wizard_step = next_idx
             st.rerun()
         # Treat any other text as notes for this step.
         st.session_state.internal_notes = raw
-        _chat_add(role="assistant", tag="ack:notes_saved", content="Saved notes. Type **/next** to continue (or **/hint**).")
+        _chat_add(role="assistant", tag="ack:notes_saved", content="OK — notes saved.")
+        next_idx = min(max_step_index, step_index + 1)
+        st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+        st.session_state.wizard_step = next_idx
         st.rerun()
 
     _chat_add(
         role="assistant",
         tag="chat_help",
-        content="I can navigate for you. Type **/next**, **/back**, **/reset**, or **/hint** — or use Guided controls on the right.",
+        content="Type **/next** to continue, or **/hint** to see the full menu for this step — or use Guided controls on the right.",
     )
     st.rerun()
 
@@ -2518,18 +2687,23 @@ def _quote_text_summary(book: PriceBook, quote) -> str:
 def _render_sidebar(book: PriceBook, step_index: int, step_labels: list[str], quote, quote_error: Optional[str]) -> None:
     _render_logo(where="sidebar")
 
-    if not bool(st.session_state.get("lead_captured")):
+    lead_name = str(st.session_state.get("lead_name") or "").strip()
+    lead_email = str(st.session_state.get("lead_email") or "").strip()
+    lead_captured = bool(st.session_state.get("lead_captured"))
+    if not lead_captured:
         st.sidebar.subheader("Lead capture")
+        if lead_name or lead_email:
+            st.sidebar.caption(f"Lead: **{lead_name or '-'}** / **{lead_email or '-'}**")
         st.sidebar.caption("Enter name + email in the main pane to start quoting.")
-        return
 
-    with st.sidebar.expander("Wizard", expanded=False):
+    with st.sidebar.expander("Wizard", expanded=True):
         for idx, label in enumerate(step_labels):
             marker = "➡️" if idx == step_index else "•"
             st.sidebar.write(f"{marker} {label}")
         st.sidebar.progress((step_index + 1) / len(step_labels))
 
     st.sidebar.caption("Quote preview")
+    st.sidebar.write(f"Pricebook: **{book.revision}**")
     if quote_error:
         st.sidebar.error(quote_error)
     elif quote is None:
@@ -2901,7 +3075,10 @@ def _render_openings_placement_controls(book: PriceBook, disabled: bool) -> None
         st.session_state.opening_seq = int(st.session_state.get("opening_seq") or 1)
         st.rerun()
 
-    with st.expander("Add opening", expanded=False):
+    # IMPORTANT: This function is often rendered inside a step expander in the Configuration tab.
+    # Streamlit does not allow nested expanders, so we avoid st.expander here entirely.
+    with st.container(border=True):
+        st.markdown("**Add opening**")
         c1, c2, c3 = st.columns([1, 1, 1])
         if c1.button("Door", key="openings_add_door", disabled=disabled, use_container_width=True):
             st.session_state.openings.append({"id": int(st.session_state.opening_seq), "kind": "door", "side": "front", "offset_ft": 0})
@@ -2926,7 +3103,8 @@ def _render_openings_placement_controls(book: PriceBook, disabled: bool) -> None
         if not isinstance(row, dict):
             continue
         oid = int(row.get("id") or (idx + 1))
-        with st.expander(f"Opening #{oid}", expanded=False):
+        with st.container(border=True):
+            st.markdown(f"**Opening #{oid}**")
             r1, r2, r3, r4 = st.columns([1, 1, 1, 1])
             kind = r1.selectbox(
                 "Type",
