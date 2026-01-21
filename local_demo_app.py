@@ -211,16 +211,26 @@ def _preview_openings_from_state() -> tuple[BuildingOpening, ...]:
     If explicit openings are configured (wall + offset), we use those.
     Otherwise, we fall back to the legacy qty-based heuristics.
     """
-    explicit = st.session_state.get("openings")
+    return _preview_openings_from_mapping(st.session_state)
+
+
+def _preview_openings_from_mapping(state: Mapping[str, object]) -> tuple[BuildingOpening, ...]:
+    """
+    Map a state mapping into drawable doors/windows.
+
+    This is used for quote/PDF previews, so we can render using shadow-protected
+    effective state instead of relying solely on `st.session_state`.
+    """
+    explicit = state.get("openings")
     if isinstance(explicit, list) and explicit:
-        return _openings_to_building_openings(explicit)
+        return _openings_to_building_openings(explicit, state=state)
 
     openings: list[BuildingOpening] = []
 
     # Garage doors (default to FRONT). Roll-up sizes are in feet like "10x8", "10x10".
-    gd_count = int(st.session_state.get("garage_door_count") or 0)
-    gd_kind = str(st.session_state.get("garage_door_type") or "None")
-    gd_size = str(st.session_state.get("garage_door_size") or "")
+    gd_count = int(state.get("garage_door_count") or 0)
+    gd_kind = str(state.get("garage_door_type") or "None")
+    gd_size = str(state.get("garage_door_size") or "")
     if gd_count > 0 and gd_kind != "None":
         w_ft, h_ft = 10, 8
         m = re.match(r"^\s*(\d+)\s*x\s*(\d+)\s*$", gd_size)
@@ -237,14 +247,14 @@ def _preview_openings_from_state() -> tuple[BuildingOpening, ...]:
             )
 
     # Walk-in doors: auto distribute across FRONT then RIGHT then LEFT then BACK.
-    wid_count = int(st.session_state.get("walk_in_door_count") or 0)
+    wid_count = int(state.get("walk_in_door_count") or 0)
     for idx in range(min(8, wid_count)):
         side = [BuildingSide.FRONT, BuildingSide.RIGHT, BuildingSide.LEFT, BuildingSide.BACK][idx % 4]
         openings.append(BuildingOpening(side=side, kind=BuildingOpeningKind.DOOR, width_ft=3, height_ft=7))
 
     # Windows: default to RIGHT; if many, spill to LEFT.
-    win_count = int(st.session_state.get("window_count") or 0)
-    win_label = str(st.session_state.get("window_size") or "")
+    win_count = int(state.get("window_count") or 0)
+    win_label = str(state.get("window_size") or "")
     ww_ft, wh_ft = 2, 3
     m = re.match(r"^\s*(\d+)\s*x\s*(\d+)\s*$", win_label)
     if m:
@@ -261,18 +271,21 @@ def _preview_openings_from_state() -> tuple[BuildingOpening, ...]:
     return tuple(openings)
 
 
-def _openings_to_building_openings(openings_state: list[object]) -> tuple[BuildingOpening, ...]:
+def _openings_to_building_openings(
+    openings_state: list[object], *, state: Optional[Mapping[str, object]] = None
+) -> tuple[BuildingOpening, ...]:
     """
     Convert the persisted openings state into `BuildingOpening` for drawing.
     """
     out: list[BuildingOpening] = []
 
     # Current size selections drive actual drawn sizes (v1).
-    win_label = str(st.session_state.get("window_size") or "")
+    s: Mapping[str, object] = state if state is not None else st.session_state
+    win_label = str(s.get("window_size") or "")
     ww_ft, wh_ft = _parse_window_size_ft(win_label)
 
-    gd_kind = str(st.session_state.get("garage_door_type") or "None")
-    gd_size = str(st.session_state.get("garage_door_size") or "")
+    gd_kind = str(s.get("garage_door_type") or "None")
+    gd_size = str(s.get("garage_door_size") or "")
     g_w_ft, g_h_ft = _parse_garage_size_ft(gd_size)
 
     for row in openings_state:
@@ -1040,7 +1053,7 @@ def _ai_intent_context_for_step(step_key: str, book: PriceBook) -> dict[str, obj
             "roll_up_door_sizes": ["None"] + _available_accessory_labels(book, ROLL_UP_DOOR_OPTIONS),
             "option_codes": _available_option_codes(book),
             "colors": ["White", "Gray", "Black", "Tan", "Sandstone", "Brown", "Red", "Burgundy", "Blue", "Green"],
-            "placements": ["front", "back", "left", "right"],
+            "placements": ["front", "rear", "back", "left", "right"],
             "opening_kinds": ["door", "window", "garage"],
         },
         "pending": pending_obj,
@@ -1070,7 +1083,7 @@ def _parse_section_placement(text: str) -> Optional[SectionPlacement]:
     t = (text or "").lower()
     if re.search(r"\bfront\b", t):
         return SectionPlacement.FRONT
-    if re.search(r"\bback\b", t):
+    if re.search(r"\brear\b", t) or re.search(r"\bback\b", t):
         return SectionPlacement.BACK
     if re.search(r"\bleft\b", t):
         return SectionPlacement.LEFT
@@ -2449,7 +2462,14 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
     # If we just auto-advanced and the very next user input is "no" or "go back",
     # return to the previous step so they can overwrite.
     last_auto = st.session_state.get("chat_last_auto_advance")
-    if (_back_intent(raw) or _no_intent(raw)) and isinstance(last_auto, dict):
+    raw_norm = (raw or "").strip().lower()
+    has_pending_option_placement = (
+        step_key == "options" and isinstance(st.session_state.get("chat_pending_option_placement"), dict)
+    )
+    treat_back_as_placement = has_pending_option_placement and raw_norm == "back"
+
+    treat_no_as_go_back = _no_intent(raw) and step_key not in {"openings_types", "openings_placement", "options", "notes"}
+    if ((not treat_back_as_placement and _back_intent(raw)) or treat_no_as_go_back) and isinstance(last_auto, dict):
         try:
             from_idx = int(last_auto.get("from_step_index"))
             to_idx = int(last_auto.get("to_step_index"))
@@ -2464,7 +2484,7 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
             st.rerun()
 
     # If the user explicitly says "go back" at any time, go back a step (not advertised in /hint).
-    if _back_intent(raw):
+    if not treat_back_as_placement and _back_intent(raw):
         st.session_state.pop("chat_last_auto_advance", None)
         st.session_state["wizard_step"] = max(0, step_index - 1)
         _chat_add(role="assistant", tag="nav:go_back_any", content="Okay — back one step. Type your updated choice (or **/hint**).")
@@ -3061,7 +3081,7 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                 st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
                 st.session_state["wizard_step"] = next_idx
                 st.rerun()
-            _chat_add(role="assistant", content="Pick a placement: **front**, **back**, **left**, **right** — or type **skip**.")
+            _chat_add(role="assistant", content="Pick a placement: **front**, **rear**, **left**, **right** — or type **skip**.")
             st.rerun()
 
         stage = _options_stage()
@@ -3161,9 +3181,9 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                     st.session_state["chat_pending_option_placement"] = {"codes": list(selected)}
                     _chat_add(
                         role="assistant",
-                        content="Where should we place that? Reply **front/back/left/right**, or **skip**.",
+                        content="Where should we place that? Reply **front/rear/left/right**, or **skip**.",
                     )
-                    st.rerun()
+                st.rerun()
 
                 _set_options_stage("ground_certification")
                 next_idx = min(max_step_index, step_index + 1)
@@ -3926,16 +3946,22 @@ def _build_quote_pdf_bytes_for_current_state(book: PriceBook, quote) -> bytes:
     """
     Build PDF bytes for the current quote + current UI state.
     """
+    defaults = _default_state(book)
+    export_active_keys = _active_keys_for_step_key("quote")
+    export_active_keys.add("wizard_step")
+    export_active_keys.update({"manufacturer_discount_pct", "downpayment_pct"})
+    export_state = _effective_state(defaults, active_keys=export_active_keys)
+
     quote_id = _quote_input_signature(book, quote)
     logo_bytes = _cached_logo_png_bytes()
     all_views = _cached_building_views_png(
-        width_ft=int(st.session_state.get("width_ft") or 0),
-        length_ft=int(st.session_state.get("length_ft") or 0),
-        height_ft=int(st.session_state.get("leg_height_ft") or 0),
-        roof_color=str(st.session_state.get("roof_color") or "White"),
-        trim_color=str(st.session_state.get("trim_color") or "White"),
-        side_color=str(st.session_state.get("side_color") or "White"),
-        openings=_preview_openings_from_state(),
+        width_ft=int(export_state.get("width_ft") or 0),
+        length_ft=int(export_state.get("length_ft") or 0),
+        height_ft=int(export_state.get("leg_height_ft") or 0),
+        roof_color=str(export_state.get("roof_color") or "White"),
+        trim_color=str(export_state.get("trim_color") or "White"),
+        side_color=str(export_state.get("side_color") or "White"),
+        openings=_preview_openings_from_mapping(export_state),
     )
 
     building_amount_cents = int(quote.total_usd) * 100
@@ -4779,13 +4805,13 @@ def main() -> None:
                 with right:
                     try:
                         preview_png = _cached_building_isometric_png(
-                            width_ft=int(st.session_state.get("width_ft") or 0),
-                            length_ft=int(st.session_state.get("length_ft") or 0),
-                            height_ft=int(st.session_state.get("leg_height_ft") or 0),
-                            roof_color=str(st.session_state.get("roof_color") or "White"),
-                            trim_color=str(st.session_state.get("trim_color") or "White"),
-                            side_color=str(st.session_state.get("side_color") or "White"),
-                            openings=_preview_openings_from_state(),
+                            width_ft=int(state.get("width_ft") or 0),
+                            length_ft=int(state.get("length_ft") or 0),
+                            height_ft=int(state.get("leg_height_ft") or 0),
+                            roof_color=str(state.get("roof_color") or "White"),
+                            trim_color=str(state.get("trim_color") or "White"),
+                            side_color=str(state.get("side_color") or "White"),
+                            openings=_preview_openings_from_mapping(state),
                         )
                         st.image(preview_png, caption="Building view", use_container_width=True)
                     except Exception:

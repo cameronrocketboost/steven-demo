@@ -248,6 +248,18 @@ class TestChatCommands(unittest.TestCase):
             self.assertIn("J_TRIM", list(fake_session_state.get("selected_option_codes") or []))
             pending = fake_session_state.get("chat_pending_option_placement")
             self.assertIsInstance(pending, dict)
+
+            # Regression: "back" is a navigation command, but when we're explicitly prompting
+            # for option placement it should be interpreted as BACK placement (rear wall).
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="back",
+                    step_key="options",
+                    step_index=4,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertEqual(fake_session_state.get("placement_J_TRIM"), local_demo_app.SectionPlacement.BACK)
         finally:
             local_demo_app.st.session_state = original_session_state
             local_demo_app.st.rerun = original_rerun
@@ -385,6 +397,49 @@ class TestChatCommands(unittest.TestCase):
             self.assertEqual(str(fake_session_state.get("trim_color") or ""), "White")
             self.assertEqual(str(fake_session_state.get("side_color") or ""), "Tan")
             self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 6)
+        finally:
+            local_demo_app.st.session_state = original_session_state
+            local_demo_app.st.rerun = original_rerun
+
+    def test_notes_no_does_not_navigate_back(self) -> None:
+        book = _load_demo_book()
+        steps = local_demo_app._wizard_steps()
+        max_step_index = len(steps) - 1
+        notes_idx = next(i for i, (_, k) in enumerate(steps) if k == "notes")
+        quote_idx = next(i for i, (_, k) in enumerate(steps) if k == "quote")
+
+        fake_session_state: _FakeSessionState = _FakeSessionState(
+            {
+                "lead_captured": True,
+                "chat_messages": [],
+                "chat_last_visible_at_ms": 0,
+                "chat_last_scrolled_at_ms": 0,
+                "wizard_step": notes_idx,
+                "internal_notes": "something",
+                # Simulate an auto-advance into Notes (so "no" could be misread as "go back").
+                "chat_last_auto_advance": {"from_step_index": notes_idx - 1, "to_step_index": notes_idx},
+            }
+        )
+
+        def _raise_rerun() -> None:
+            raise _StopRerun()
+
+        original_session_state = local_demo_app.st.session_state
+        original_rerun = local_demo_app.st.rerun
+        try:
+            local_demo_app.st.session_state = fake_session_state  # type: ignore[assignment]
+            local_demo_app.st.rerun = _raise_rerun  # type: ignore[assignment]
+
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="no",
+                    step_key="notes",
+                    step_index=notes_idx,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertEqual(str(fake_session_state.get("internal_notes") or ""), "")
+            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), quote_idx)
         finally:
             local_demo_app.st.session_state = original_session_state
             local_demo_app.st.rerun = original_rerun
