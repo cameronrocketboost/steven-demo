@@ -855,6 +855,17 @@ def _chat_command_tokens(text: str) -> set[str]:
 
 _CHAT_SLASH_COMMAND_RE = re.compile(r"^\s*/([a-zA-Z_]+)\b")
 
+_KNOWN_CHAT_SLASH_COMMANDS = {
+    "hint",
+    "help",
+    "next",
+    "continue",
+    "apply",
+    "ok",
+    "cancel",
+    "no",
+}
+
 
 def _chat_slash_command(text: str) -> Optional[str]:
     """
@@ -865,7 +876,14 @@ def _chat_slash_command(text: str) -> Optional[str]:
     m = _CHAT_SLASH_COMMAND_RE.match(text or "")
     if not m:
         return None
-    return str(m.group(1)).strip().lower()
+    cmd = str(m.group(1)).strip().lower()
+    if cmd in _KNOWN_CHAT_SLASH_COMMANDS:
+        return cmd
+    # Be forgiving for intentional slash commands with minor typos (e.g. "/spply").
+    close = difflib.get_close_matches(cmd, list(_KNOWN_CHAT_SLASH_COMMANDS), n=1, cutoff=0.75)
+    if close:
+        return close[0]
+    return cmd
 
 
 def _chat_bare_command(text: str) -> Optional[str]:
@@ -1724,7 +1742,7 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
         _chat_add(role="assistant", tag=f"hint:{step_key}", content=_chat_menu_for_step(step_key, book))
         st.rerun()
 
-    if slash_cmd in {"apply", "ok"}:
+    if slash_cmd in {"apply", "ok"} or bare_cmd == "apply":
         pending = st.session_state.get("chat_pending_suggestion")
         if isinstance(pending, dict) and pending.get("kind") == "built_size":
             suggested = pending.get("suggested")
@@ -1744,6 +1762,18 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                         ),
                     )
                     _clear_pending_chat_suggestion()
+                    if step_key == "built_size":
+                        can_advance, reason = _chat_can_advance_step(st.session_state, step_key, book)
+                        if can_advance:
+                            next_idx = min(max_step_index, step_index + 1)
+                            st.session_state["chat_last_auto_advance"] = {
+                                "from_step_index": int(step_index),
+                                "to_step_index": int(next_idx),
+                            }
+                            st.session_state["wizard_step"] = next_idx
+                            st.rerun()
+                        _chat_add(role="assistant", tag="help:after_apply_blocked", content=reason)
+                        st.rerun()
                     _chat_add(role="assistant", tag="coach:after_apply", content="When you’re ready, type **/next**.")
                     st.rerun()
         _chat_add(role="assistant", tag="no_suggestion", content="Nothing to apply right now. Type **/hint** for examples.")
@@ -1778,22 +1808,29 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
         if "chat_built_size_has_dims" not in st.session_state:
             st.session_state["chat_built_size_has_dims"] = False
 
-        _clear_pending_chat_suggestion()
         prev_style = str(st.session_state.get("demo_style") or "")
         prev_w = int(st.session_state.get("width_ft") or 0)
         prev_l = int(st.session_state.get("length_ft") or 0)
 
         style = _parse_style_label(raw)
+        updated_style = False
         if style is not None:
             st.session_state["demo_style"] = style
             st.session_state["chat_built_size_has_style"] = True
+            updated_style = True
 
         dims = _parse_dimensions_ft(raw)
+        updated_dims = False
         if dims is not None:
             w, l = dims
             st.session_state["width_ft"] = w
             st.session_state["length_ft"] = l
             st.session_state["chat_built_size_has_dims"] = True
+            updated_dims = True
+
+        # Only clear a pending suggestion when the user actually changed style/size.
+        if updated_style or updated_dims:
+            _clear_pending_chat_suggestion()
 
         has_style = bool(st.session_state.get("chat_built_size_has_style"))
         has_dims = bool(st.session_state.get("chat_built_size_has_dims"))

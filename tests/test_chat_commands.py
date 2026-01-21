@@ -50,6 +50,7 @@ class TestChatCommands(unittest.TestCase):
     def test_chat_slash_command_is_intentional(self) -> None:
         self.assertEqual(local_demo_app._chat_slash_command("/next"), "next")
         self.assertEqual(local_demo_app._chat_slash_command("  /HINT please"), "hint")
+        self.assertEqual(local_demo_app._chat_slash_command(" /spply"), "apply")
         self.assertIsNone(local_demo_app._chat_slash_command("next"))
 
     def test_chat_bare_command_is_strict(self) -> None:
@@ -202,16 +203,17 @@ class TestChatCommands(unittest.TestCase):
             self.assertIsInstance(suggested, dict)
             self.assertEqual(int(suggested.get("length_ft") or 0), 26)
 
-            # Turn 3: valid size → should auto-advance to next step.
+            # Turn 3: typo'd /apply → should apply suggestion and auto-advance to next step.
             with self.assertRaises(_StopRerun):
                 local_demo_app._handle_chat_input(
-                    text="12x21",
+                    text="/spply",
                     step_key="built_size",
                     step_index=0,
                     max_step_index=max_step_index,
                     book=book,
                 )
             self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 1)
+            self.assertIsNone(fake_session_state.get("chat_pending_suggestion"))
         finally:
             local_demo_app.st.session_state = original_session_state
             local_demo_app.st.rerun = original_rerun
