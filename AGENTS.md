@@ -131,13 +131,6 @@ python3 "/Users/cameron/STEVEN DEMO/scripts/extract_pricebooks.py" \
   --pdf "Coast_To_Coast_Carports___Price_Book___R29 (1).pdf"
 ```
 
-Required env vars (do not commit secrets):
-- `MISTRAL_API_KEY=...`
-- `MISTRAL_UPLOAD_PROVIDER=supabase`
-- `SUPABASE_URL=https://awczxhylkppsbaukosnz.supabase.co`
-- `SUPABASE_ANON_KEY=...`
-- `SUPABASE_BUCKET=mistral-tmp` (optional)
-- `DELETE_AFTER_OCR=true` (optional; default true)
 
 #### Normalize extracted outputs (local-only)
 

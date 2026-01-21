@@ -98,6 +98,38 @@ class TestQuotePdf(unittest.TestCase):
         for label in (b"FRONT", b"BACK", b"LEFT", b"RIGHT", b"ISOMETRIC"):
             self.assertGreaterEqual(pdf.count(label), 1)
 
+    def test_pdf_paginates_many_line_items_without_overlap(self) -> None:
+        # Regression test: large item counts should never overlap the totals box or get dropped.
+        items = tuple(
+            QuotePdfLineItem(description=f"Item {i}", qty=1, amount_cents=100)
+            for i in range(80)
+        )
+        artifact = QuotePdfArtifact(
+            quote_id="TESTMANY",
+            quote_date=date(2026, 1, 15),
+            pricebook_revision="R29 (NW) demo",
+            customer_name="Demo Customer",
+            customer_email="demo@example.com",
+            building_label="Commercial Buildings",
+            building_summary="22 x 31 x 10",
+            line_items=items,
+            totals=QuotePdfTotals(
+                building_amount_cents=80 * 100,
+                discount_cents=0,
+                subtotal_cents=80 * 100,
+                additional_charges_cents=0,
+                grand_total_cents=80 * 100,
+                downpayment_cents=18 * 100,
+                balance_due_cents=62 * 100,
+            ),
+        )
+        pdf = make_quote_pdf_bytes(artifact)
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        # Should span multiple pages when items are large.
+        self.assertGreaterEqual(self._count_pdf_pages(pdf), 2)
+        # Ensure the final line item isn't dropped (compression disabled).
+        self.assertIn(b"Item 79", pdf)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -191,92 +191,104 @@ def make_quote_pdf_bytes(artifact: QuotePdfArtifact) -> bytes:
             pass
 
     y = y - block_h - 0.25 * inch
+    # Line items table (auto-grow + paginate so totals never overlap line items)
+    footer_base_y = margin + 0.35 * inch
+    reserved_bottom_y = footer_base_y
+    if artifact.notes:
+        # Notes render above the footer; reserve space so the table never collides.
+        # We show at most 3 notes, each ~0.12", plus a header gap.
+        reserved_bottom_y = footer_base_y + 0.15 * inch + (min(3, len(artifact.notes)) * 0.12 * inch)
 
-    # Line items table
-    table_h = 3.6 * inch
-    _rect(c, x0, y - table_h, w - 2 * margin, table_h, stroke=1, fill=0)
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(x0 + pad, y - 0.25 * inch, "DESCRIPTION")
-    c.drawRightString(w - margin - 1.4 * inch, y - 0.25 * inch, "QTY")
-    c.drawRightString(w - margin - 0.15 * inch, y - 0.25 * inch, "AMOUNT")
-    _hline(c, x0, w - margin, y - 0.35 * inch)
+    remaining = list(artifact.line_items)
+    first_page = True
+    while True:
+        if first_page:
+            table_top_y = y
+        else:
+            # Continuation pages: a small title, then the table.
+            table_top_y = (h - margin) - 0.55 * inch
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(x0, (h - margin) - 0.25 * inch, "LINE ITEMS (CONTINUED)")
 
-    # Totals box (bottom-right inside table)
-    #
-    # IMPORTANT: We compute this before rendering rows so we can stop the line item
-    # list before it collides with the totals box.
-    totals_box_w = 2.35 * inch
-    totals_box_h = 2.05 * inch
-    # Align the totals box flush with the right table border, and keep a consistent
-    # bottom inset so it doesn't look "floating".
-    tx = w - margin - totals_box_w
-    totals_bottom_pad = 0.15 * inch
-    ty = y - table_h + totals_bottom_pad + totals_box_h
+        max_table_h = _max_table_height(table_top_y, reserved_bottom_y)
+        if max_table_h <= 1.0 * inch:
+            # Extremely defensive: ensure we always draw something valid.
+            max_table_h = 1.0 * inch
 
-    row_y = y - 0.55 * inch
-    row_h = 0.27 * inch
-    c.setFont("Helvetica", 9)
-    desc_max_w = (w - 2 * margin) - (1.55 * inch + 0.20 * inch)  # qty+amount columns
-    for li in artifact.line_items:
-        # Stop before we collide with the totals/payment box.
-        totals_box_bottom_y = ty - totals_box_h
-        if row_y <= (totals_box_bottom_y + 0.15 * inch):
+        # First, see if the remaining items can fit on a single page WITH totals.
+        needed_with_totals = _needed_table_height_with_totals(
+            item_count=len(remaining),
+            row_h=0.27 * inch,
+            first_row_offset=0.55 * inch,
+            totals_box_h=2.05 * inch,
+            totals_bottom_pad=0.15 * inch,
+            clearance_rows=2,
+        )
+        if needed_with_totals > max_table_h:
+            can_finish_here = False
+        else:
+            # Double-check capacity using the SAME cutoff logic as the renderer so we never
+            # end up with overlap or silently dropped items.
+            table_h_candidate = max(3.6 * inch, needed_with_totals)
+            row_h = 0.27 * inch
+            row_start_y = table_top_y - 0.55 * inch
+            table_bottom_y = table_top_y - table_h_candidate
+            bottom_content_pad = max(0.45 * inch, 2.0 * row_h)
+            totals_box_h = 2.05 * inch
+            totals_bottom_pad = 0.15 * inch
+            totals_box_top_y = table_bottom_y + totals_bottom_pad + totals_box_h
+            totals_clearance_y = totals_box_top_y + (2.0 * row_h)
+            min_row_y = max(table_bottom_y + bottom_content_pad, totals_clearance_y)
+            if row_start_y <= min_row_y:
+                capacity = 0
+            else:
+                capacity = int((row_start_y - min_row_y) // row_h) + 1
+            can_finish_here = capacity >= len(remaining)
+
+        if can_finish_here:
+            table_h = max(3.6 * inch, needed_with_totals)
+            remaining = _render_line_items_table_page(
+                c,
+                artifact=artifact,
+                x0=x0,
+                margin=margin,
+                pad=pad,
+                page_w=w,
+                table_top_y=table_top_y,
+                table_h=table_h,
+                include_totals=True,
+                line_items=tuple(remaining),
+                reserved_bottom_y=reserved_bottom_y,
+            )
             break
-        if row_y < (y - table_h + 0.45 * inch):
-            break  # v1: single-page, stop if overflow
-        _draw_truncated(c, x0 + pad, row_y, li.description, max_width=desc_max_w)
-        c.drawRightString(w - margin - 1.4 * inch, row_y, str(max(1, int(li.qty))))
-        c.drawRightString(w - margin - 0.15 * inch, row_y, format_usd(li.amount_cents))
-        row_y -= row_h
 
-    _rect(c, tx, ty - totals_box_h, totals_box_w, totals_box_h, stroke=1, fill=0)
-
-    # Totals layout inside the box (keep generous padding so labels never collide with amounts).
-    left_pad = 0.12 * inch
-    right_pad = 0.12 * inch
-    row_step = 0.19 * inch
-    y_cursor = ty - 0.30 * inch
-
-    c.setFont("Helvetica", 9)
-    _totals_row(c, tx, y_cursor, "Building Amount", artifact.totals.building_amount_cents, totals_box_w)
-    y_cursor -= row_step
-    _totals_row(c, tx, y_cursor, "Manufacturer Discount", -abs(artifact.totals.discount_cents), totals_box_w)
-    y_cursor -= row_step
-    _totals_row(c, tx, y_cursor, "Sub Total", artifact.totals.subtotal_cents, totals_box_w)
-    y_cursor -= row_step
-    _totals_row(c, tx, y_cursor, "Additional Charges", artifact.totals.additional_charges_cents, totals_box_w)
-    y_cursor -= (row_step + 0.03 * inch)
-
-    c.setFont("Helvetica-Bold", 10)
-    _totals_row(c, tx, y_cursor, "Grand Total", artifact.totals.grand_total_cents, totals_box_w)
-    y_cursor -= (row_step + 0.05 * inch)
-
-    # Pay now band + payment breakdown
-    band_h = 0.20 * inch
-    c.setFillColor(colors.black)
-    band_y = y_cursor - band_h + 0.02 * inch
-    c.rect(tx, band_y, totals_box_w, band_h, stroke=0, fill=1)
-    c.setFillColor(colors.white)
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(tx + left_pad, y_cursor - 0.13 * inch, "Pay Now")
-    c.setFillColor(colors.black)
-    # Extra spacing so Downpayment text never overlaps the black band.
-    y_cursor -= (band_h + 0.18 * inch)
-
-    c.setFont("Helvetica", 9)
-    _totals_row(c, tx, y_cursor, "Downpayment", artifact.totals.downpayment_cents, totals_box_w)
-    y_cursor -= row_step
-    _totals_row(c, tx, y_cursor, "Balance Due", artifact.totals.balance_due_cents, totals_box_w)
+        # Not enough room to finish: render a continuation page WITHOUT totals,
+        # using the maximum available table height to pack rows.
+        table_h = max_table_h
+        remaining = _render_line_items_table_page(
+            c,
+            artifact=artifact,
+            x0=x0,
+            margin=margin,
+            pad=pad,
+            page_w=w,
+            table_top_y=table_top_y,
+            table_h=table_h,
+            include_totals=False,
+            line_items=tuple(remaining),
+            reserved_bottom_y=reserved_bottom_y,
+        )
+        c.showPage()
+        first_page = False
 
     # Notes + traceability footer
-    footer_y = margin + 0.35 * inch
     c.setFont("Helvetica", 8)
     c.setFillColor(colors.grey)
-    c.drawString(x0, footer_y, f"Pricebook revision: {artifact.pricebook_revision}")
+    c.drawString(x0, footer_base_y, f"Pricebook revision: {artifact.pricebook_revision}")
     c.setFillColor(colors.black)
 
     if artifact.notes:
-        note_y = footer_y + 0.15 * inch
+        note_y = footer_base_y + 0.15 * inch
         c.setFont("Helvetica", 8)
         for n in artifact.notes[:3]:
             c.drawString(x0, note_y, f"Note: {n}")
@@ -382,6 +394,148 @@ def _draw_truncated(c: canvas.Canvas, x: float, y: float, text: str, *, max_widt
             hi = mid - 1
     if best:
         c.drawString(x, y, best)
+
+
+def _max_table_height(table_top_y: float, reserved_bottom_y: float) -> float:
+    """
+    Compute the maximum table height that fits between `table_top_y` and the reserved footer area.
+    """
+    if not isinstance(table_top_y, (int, float)) or not isinstance(reserved_bottom_y, (int, float)):
+        raise TypeError("table_top_y and reserved_bottom_y must be numeric")
+    if table_top_y <= reserved_bottom_y:
+        return 0.0
+    gap = 0.25 * inch  # visual breathing room above the footer/notes
+    return max(0.0, float(table_top_y - reserved_bottom_y - gap))
+
+
+def _needed_table_height_with_totals(
+    *,
+    item_count: int,
+    row_h: float,
+    first_row_offset: float,
+    totals_box_h: float,
+    totals_bottom_pad: float,
+    clearance_rows: int,
+) -> float:
+    """
+    Compute a table height large enough to render `item_count` rows with a bottom-right totals box.
+
+    The totals box is bottom-aligned with `totals_bottom_pad`. We also reserve `clearance_rows`
+    empty row-heights above the TOP of the totals box to guarantee no overlap risk.
+    """
+    if item_count < 0:
+        raise ValueError("item_count must be >= 0")
+    rows = max(0, item_count - 1)
+    return (
+        float(first_row_offset)
+        + float(rows) * float(row_h)
+        + float(totals_box_h)
+        + float(totals_bottom_pad)
+        + float(clearance_rows) * float(row_h)
+    )
+
+
+def _render_line_items_table_page(
+    c: canvas.Canvas,
+    *,
+    artifact: QuotePdfArtifact,
+    x0: float,
+    margin: float,
+    pad: float,
+    page_w: float,
+    table_top_y: float,
+    table_h: float,
+    include_totals: bool,
+    line_items: Tuple[QuotePdfLineItem, ...],
+    reserved_bottom_y: float,
+) -> list[QuotePdfLineItem]:
+    """
+    Render one page of the line-items table.
+
+    Returns the remaining (not rendered) line items.
+    """
+    if table_top_y - table_h <= reserved_bottom_y:
+        # Don't hard-error; drawing will still clip visually but we keep output valid.
+        pass
+
+    table_w = page_w - 2 * margin
+    table_bottom_y = table_top_y - table_h
+    _rect(c, x0, table_bottom_y, table_w, table_h, stroke=1, fill=0)
+
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(x0 + pad, table_top_y - 0.25 * inch, "DESCRIPTION")
+    c.drawRightString(page_w - margin - 1.4 * inch, table_top_y - 0.25 * inch, "QTY")
+    c.drawRightString(page_w - margin - 0.15 * inch, table_top_y - 0.25 * inch, "AMOUNT")
+    _hline(c, x0, page_w - margin, table_top_y - 0.35 * inch)
+
+    row_h = 0.27 * inch
+    row_y = table_top_y - 0.55 * inch
+    bottom_content_pad = max(0.45 * inch, 2.0 * row_h)
+
+    c.setFont("Helvetica", 9)
+    desc_max_w = (page_w - 2 * margin) - (1.55 * inch + 0.20 * inch)  # qty+amount columns
+
+    # Optional totals box geometry (bottom-right inside table)
+    totals_box_w = 2.35 * inch
+    totals_box_h = 2.05 * inch
+    totals_bottom_pad = 0.15 * inch
+    totals_box_bottom_y = table_bottom_y + totals_bottom_pad
+    totals_box_top_y = totals_box_bottom_y + totals_box_h
+    totals_clearance_y = totals_box_top_y + (2.0 * row_h)  # 1–2 line heights above the box
+
+    rendered = 0
+    for li in line_items:
+        if row_y < (table_bottom_y + bottom_content_pad):
+            break
+        if include_totals and row_y <= totals_clearance_y:
+            break
+        _draw_truncated(c, x0 + pad, row_y, li.description, max_width=desc_max_w)
+        c.drawRightString(page_w - margin - 1.4 * inch, row_y, str(max(1, int(li.qty))))
+        c.drawRightString(page_w - margin - 0.15 * inch, row_y, format_usd(li.amount_cents))
+        row_y -= row_h
+        rendered += 1
+
+    if include_totals:
+        tx = page_w - margin - totals_box_w
+        _rect(c, tx, totals_box_bottom_y, totals_box_w, totals_box_h, stroke=1, fill=0)
+
+        # Totals layout inside the box (keep generous padding so labels never collide with amounts).
+        left_pad = 0.12 * inch
+        row_step = 0.19 * inch
+        y_cursor = totals_box_top_y - 0.30 * inch
+
+        c.setFont("Helvetica", 9)
+        _totals_row(c, tx, y_cursor, "Building Amount", artifact.totals.building_amount_cents, totals_box_w)
+        y_cursor -= row_step
+        _totals_row(c, tx, y_cursor, "Manufacturer Discount", -abs(artifact.totals.discount_cents), totals_box_w)
+        y_cursor -= row_step
+        _totals_row(c, tx, y_cursor, "Sub Total", artifact.totals.subtotal_cents, totals_box_w)
+        y_cursor -= row_step
+        _totals_row(c, tx, y_cursor, "Additional Charges", artifact.totals.additional_charges_cents, totals_box_w)
+        y_cursor -= (row_step + 0.03 * inch)
+
+        c.setFont("Helvetica-Bold", 10)
+        _totals_row(c, tx, y_cursor, "Grand Total", artifact.totals.grand_total_cents, totals_box_w)
+        y_cursor -= (row_step + 0.05 * inch)
+
+        # Pay now band + payment breakdown
+        band_h = 0.20 * inch
+        c.setFillColor(colors.black)
+        band_y = y_cursor - band_h + 0.02 * inch
+        c.rect(tx, band_y, totals_box_w, band_h, stroke=0, fill=1)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(tx + left_pad, y_cursor - 0.13 * inch, "Pay Now")
+        c.setFillColor(colors.black)
+        # Extra spacing so Downpayment text never overlaps the black band.
+        y_cursor -= (band_h + 0.18 * inch)
+
+        c.setFont("Helvetica", 9)
+        _totals_row(c, tx, y_cursor, "Downpayment", artifact.totals.downpayment_cents, totals_box_w)
+        y_cursor -= row_step
+        _totals_row(c, tx, y_cursor, "Balance Due", artifact.totals.balance_due_cents, totals_box_w)
+
+    return list(line_items[rendered:])
 
 
 def _render_building_view_page(
