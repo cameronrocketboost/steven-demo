@@ -1711,33 +1711,29 @@ def _parse_color_assignments(text: str, allowed_colors: list[str]) -> dict[str, 
 
     out: dict[str, str] = {}
 
-    # Token-pair patterns: "roof white", "trim black", "side black", with optional separators.
-    for m in re.finditer(r"\b(roof|trim|side|sides)\b\s*[:=-]?\s*\b([a-z]+)\b", t):
-        field = m.group(1)
-        color = m.group(2)
+    # Build a safe alternation for allowed colors so we can match explicitly.
+    color_alt = "|".join(re.escape(c.lower()) for c in allowed_colors if isinstance(c, str) and c)
+    if not color_alt:
+        return out
+
+    # Pattern A: "roof black", "trim white", "sides tan" (field then color).
+    for m in re.finditer(rf"\b(roof|trim|side|sides)\b\s*[:=-]?\s*\b({color_alt})\b", t):
+        field = str(m.group(1) or "")
+        color = str(m.group(2) or "")
         if color in allowed_lower:
             key = "side_color" if field in {"side", "sides"} else f"{field}_color"
             out[key] = allowed_lower[color]
 
-    # Also allow comma-separated fragments containing both a field and a color.
-    parts = re.split(r"[,;\n]+", t)
-    for part in parts:
-        part = part.strip()
-        if not part:
-            continue
-        field = None
-        if re.search(r"\broof\b", part):
-            field = "roof_color"
-        elif re.search(r"\btrim\b", part):
-            field = "trim_color"
-        elif re.search(r"\bsides?\b", part):
-            field = "side_color"
-        if not field:
-            continue
-        for c_lower, c in allowed_lower.items():
-            if re.search(rf"\b{re.escape(c_lower)}\b", part):
-                out[field] = c
-                break
+    # Pattern B: "black roof", "white trim", "tan sides" (color then field).
+    for m in re.finditer(rf"\b({color_alt})\b\s*[:=-]?\s*\b(roof|trim|side|sides)\b", t):
+        color = str(m.group(1) or "")
+        field = str(m.group(2) or "")
+        if color in allowed_lower:
+            key = "side_color" if field in {"side", "sides"} else f"{field}_color"
+            # Only fill missing fields here. This prevents accidental cross-boundary matches like:
+            # "roof black trim white" → "black trim" should NOT override the explicit "trim white".
+            if key not in out:
+                out[key] = allowed_lower[color]
 
     return out
 
@@ -2241,7 +2237,7 @@ def _chat_prompt_for_current_step(step_key: str) -> str:
             "- Type **go back** if you want to change the previous step\n"
         ),
         "quote": "Here’s the quote. Review it in the **Configuration** tab. Type **/hint** if you want the menu.",
-        "done": "Thanks — a member of our team will be in contact. Type **/hint** if you want the menu.",
+        "done": "Your Quote has been finished — Thank you! A member of the team will be in contact.",
     }
     return prompts.get(step_key, "Type **/next** to continue, or **/hint** for the menu.")
 

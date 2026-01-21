@@ -225,6 +225,49 @@ class TestChatCommands(unittest.TestCase):
             local_demo_app.st.session_state = original_session_state
             local_demo_app.st.rerun = original_rerun
 
+    def test_colors_parses_all_fields_without_commas_and_advances(self) -> None:
+        book = _load_demo_book()
+        steps = local_demo_app._wizard_steps()
+        max_step_index = len(steps) - 1
+
+        fake_session_state: _FakeSessionState = _FakeSessionState(
+            {
+                "lead_captured": True,
+                "chat_messages": [],
+                "chat_last_visible_at_ms": 0,
+                "chat_last_scrolled_at_ms": 0,
+                "wizard_step": 5,
+                "roof_color": "White",
+                "trim_color": "White",
+                "side_color": "White",
+            }
+        )
+
+        def _raise_rerun() -> None:
+            raise _StopRerun()
+
+        original_session_state = local_demo_app.st.session_state
+        original_rerun = local_demo_app.st.rerun
+        try:
+            local_demo_app.st.session_state = fake_session_state  # type: ignore[assignment]
+            local_demo_app.st.rerun = _raise_rerun  # type: ignore[assignment]
+
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="roof black trim white sides tan",
+                    step_key="colors",
+                    step_index=5,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertEqual(str(fake_session_state.get("roof_color") or ""), "Black")
+            self.assertEqual(str(fake_session_state.get("trim_color") or ""), "White")
+            self.assertEqual(str(fake_session_state.get("side_color") or ""), "Tan")
+            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 6)
+        finally:
+            local_demo_app.st.session_state = original_session_state
+            local_demo_app.st.rerun = original_rerun
+
     def test_parse_opening_placement_instruction(self) -> None:
         self.assertEqual(
             local_demo_app._parse_opening_placement_instruction("door left 3"),
