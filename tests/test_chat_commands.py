@@ -7,6 +7,35 @@ import local_demo_app
 from normalized_pricebooks import build_demo_pricebook_r29, load_normalized_pricebook
 
 
+def _load_demo_book():
+    root = Path(__file__).resolve().parents[1]
+    candidates = [
+        root / "out" / "Coast_To_Coast_Carports___Price_Book___R29_1" / "normalized_pricebook.json",
+        root / "pricebooks" / "out" / "Coast_To_Coast_Carports___Price_Book___R29_1" / "normalized_pricebook.json",
+    ]
+    normalized_path = next((p for p in candidates if p.exists()), candidates[0])
+    normalized = load_normalized_pricebook(normalized_path)
+    return build_demo_pricebook_r29(normalized)
+
+
+class _FakeSessionState(dict):
+    def __getattr__(self, name: str):
+        return self.get(name)
+
+    def __setattr__(self, name: str, value) -> None:
+        self[name] = value
+
+    def __delattr__(self, name: str) -> None:
+        try:
+            del self[name]
+        except KeyError as e:
+            raise AttributeError(name) from e
+
+
+class _StopRerun(Exception):
+    pass
+
+
 class TestChatCommands(unittest.TestCase):
     def test_chat_command_tokens_extracts_words(self) -> None:
         tokens = local_demo_app._chat_command_tokens("none continue, please!")
@@ -37,6 +66,17 @@ class TestChatCommands(unittest.TestCase):
         self.assertEqual(local_demo_app._parse_size_token("roll-up 10x8"), "10x8")
         self.assertEqual(local_demo_app._parse_size_token("10 x 10"), "10x10")
         self.assertIsNone(local_demo_app._parse_size_token("x10"))
+
+    def test_parse_dimensions_ft_handles_common_variants(self) -> None:
+        self.assertEqual(local_demo_app._parse_dimensions_ft("A-Frame 12x21"), (12, 21))
+        self.assertEqual(local_demo_app._parse_dimensions_ft("12 × 21"), (12, 21))
+        self.assertEqual(local_demo_app._parse_dimensions_ft("12' x 21'"), (12, 21))
+        self.assertEqual(local_demo_app._parse_dimensions_ft("12 by 21 feet"), (12, 21))
+
+    def test_parse_style_label_is_forgiving(self) -> None:
+        self.assertEqual(local_demo_app._parse_style_label("reular"), "Regular (Horizontal)")
+        self.assertEqual(local_demo_app._parse_style_label("standard"), "Regular (Horizontal)")
+        self.assertEqual(local_demo_app._parse_style_label("A frame vertical"), "A-Frame (Vertical)")
 
     def test_parse_opening_placement_instruction(self) -> None:
         self.assertEqual(
@@ -99,3 +139,79 @@ class TestChatCommands(unittest.TestCase):
         finally:
             local_demo_app.st.session_state = original_session_state
 
+    def test_built_size_chat_accepts_style_and_size_across_messages(self) -> None:
+        book = _load_demo_book()
+        steps = local_demo_app._wizard_steps()
+        max_step_index = len(steps) - 1
+
+        fake_session_state: _FakeSessionState = _FakeSessionState(
+            {
+                # Chat/lead basics.
+                "lead_captured": True,
+                "chat_messages": [],
+                "chat_last_visible_at_ms": 0,
+                "chat_last_scrolled_at_ms": 0,
+                # Wizard basics.
+                "wizard_step": 0,
+                "demo_style": "A-Frame (Horizontal)",
+                "width_ft": 12,
+                "length_ft": 21,
+                # Built & size explicitness flags.
+                "chat_built_size_has_style": False,
+                "chat_built_size_has_dims": False,
+            }
+        )
+
+        def _raise_rerun() -> None:
+            raise _StopRerun()
+
+        original_session_state = local_demo_app.st.session_state
+        original_rerun = local_demo_app.st.rerun
+        try:
+            local_demo_app.st.session_state = fake_session_state  # type: ignore[assignment]
+            local_demo_app.st.rerun = _raise_rerun  # type: ignore[assignment]
+
+            # Turn 1: size only → should remember dims and ask for style (not fail parsing).
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="20x22",
+                    step_key="built_size",
+                    step_index=0,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertTrue(bool(fake_session_state.get("chat_built_size_has_dims")))
+            self.assertFalse(bool(fake_session_state.get("chat_built_size_has_style")))
+
+            # Turn 2: typo'd style only → should parse as Regular and produce a size suggestion.
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="reular",
+                    step_key="built_size",
+                    step_index=0,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertTrue(bool(fake_session_state.get("chat_built_size_has_dims")))
+            self.assertTrue(bool(fake_session_state.get("chat_built_size_has_style")))
+            self.assertEqual(str(fake_session_state.get("demo_style")), "Regular (Horizontal)")
+            pending = fake_session_state.get("chat_pending_suggestion")
+            self.assertIsInstance(pending, dict)
+            self.assertEqual(str(pending.get("kind")), "built_size")
+            suggested = pending.get("suggested")
+            self.assertIsInstance(suggested, dict)
+            self.assertEqual(int(suggested.get("length_ft") or 0), 26)
+
+            # Turn 3: valid size → should auto-advance to next step.
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="12x21",
+                    step_key="built_size",
+                    step_index=0,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 1)
+        finally:
+            local_demo_app.st.session_state = original_session_state
+            local_demo_app.st.rerun = original_rerun

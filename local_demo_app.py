@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import difflib
 import io
 import json
 import os
@@ -380,6 +381,10 @@ def _init_lead_state() -> None:
         st.session_state.chat_last_prompted_step = None
     if "chat_prompt_seq" not in st.session_state:
         st.session_state.chat_prompt_seq = 1
+    if "chat_built_size_has_style" not in st.session_state:
+        st.session_state.chat_built_size_has_style = False
+    if "chat_built_size_has_dims" not in st.session_state:
+        st.session_state.chat_built_size_has_dims = False
     if "_lead_shadow" not in st.session_state:
         st.session_state["_lead_shadow"] = {"name": "", "email": "", "captured": False}
 
@@ -508,11 +513,16 @@ def _parse_dimensions_ft(text: str) -> Optional[tuple[int, int]]:
     Returns (width_ft, length_ft) when plausible, else None.
     """
     t = (text or "").lower().strip()
-    m = re.search(r"\b(\d{1,3})\s*(x|by)\s*(\d{1,3})\b", t)
+    # Allow common separators and unit markers (ft / feet / ').
+    # Examples: "12x21", "12 x 21", "12×21", "12 by 21", "12' x 21'".
+    m = re.search(
+        r"\b(\d{1,3})\s*(?:ft|feet|foot|['’′])?\s*(?:x|×|by)\s*(\d{1,3})\s*(?:ft|feet|foot|['’′])?(?!\d)",
+        t,
+    )
     if not m:
         return None
     w = int(m.group(1))
-    l = int(m.group(3))
+    l = int(m.group(2))
     # Guardrails: this demo pricebook is in feet and typical sizes are not thousands.
     if w <= 0 or l <= 0 or w > 60 or l > 200:
         return None
@@ -531,16 +541,32 @@ def _parse_leg_height_ft(text: str) -> Optional[int]:
 
 
 def _parse_style_label(text: str) -> Optional[str]:
-    t = (text or "").lower()
-    if "regular" in t:
+    t = (text or "").lower().strip()
+    if not t:
+        return None
+
+    tokens = re.findall(r"[a-z]+", t)
+
+    def _token_close_to(target: str, *, cutoff: float) -> bool:
+        for tok in tokens:
+            if tok == target:
+                return True
+            if difflib.SequenceMatcher(a=tok, b=target).ratio() >= cutoff:
+                return True
+        return False
+
+    if "regular" in t or "standard" in t or _token_close_to("regular", cutoff=0.78) or "reg" in tokens:
         return "Regular (Horizontal)"
-    if "a-frame" in t or "aframe" in t or "a frame" in t:
-        if "vertical" in t:
-            return "A-Frame (Vertical)"
-        return "A-Frame (Horizontal)"
-    if "vertical" in t:
+
+    has_aframe = ("a-frame" in t) or ("aframe" in t) or ("a" in tokens and "frame" in tokens) or _token_close_to("aframe", cutoff=0.82)
+    wants_vertical = ("vertical" in t) or ("vert" in tokens) or _token_close_to("vertical", cutoff=0.82)
+    wants_horizontal = ("horizontal" in t) or ("horiz" in tokens) or _token_close_to("horizontal", cutoff=0.82)
+
+    if has_aframe:
+        return "A-Frame (Vertical)" if wants_vertical else "A-Frame (Horizontal)"
+    if wants_vertical:
         return "A-Frame (Vertical)"
-    if "horizontal" in t and ("a-frame" in t or "aframe" in t or "a frame" in t):
+    if wants_horizontal:
         return "A-Frame (Horizontal)"
     return None
 
@@ -1219,6 +1245,8 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
 
             if st.button("Apply & continue", key="chat_action_apply_built_size", use_container_width=True):
                 _apply_chat_action_to_wizard(step_key=step_key)
+                st.session_state.chat_built_size_has_style = True
+                st.session_state.chat_built_size_has_dims = True
                 _chat_add(
                     role="assistant",
                     tag="ack:built_size_action",
@@ -1706,6 +1734,7 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                 if isinstance(w, int) and isinstance(l, int):
                     st.session_state.width_ft = int(w)
                     st.session_state.length_ft = int(l)
+                    st.session_state.chat_built_size_has_dims = True
                     _chat_add(
                         role="assistant",
                         tag="ack:apply_suggestion",
@@ -1741,89 +1770,95 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
 
     # Step-aware parsing so the user doesn't have to switch to the form.
     if step_key == "built_size":
+        if "chat_built_size_has_style" not in st.session_state:
+            st.session_state.chat_built_size_has_style = False
+        if "chat_built_size_has_dims" not in st.session_state:
+            st.session_state.chat_built_size_has_dims = False
+
         _clear_pending_chat_suggestion()
-        updated_style = False
-        updated_dims = False
+        prev_style = str(st.session_state.get("demo_style") or "")
+        prev_w = int(st.session_state.get("width_ft") or 0)
+        prev_l = int(st.session_state.get("length_ft") or 0)
+
         style = _parse_style_label(raw)
         if style is not None:
             st.session_state.demo_style = style
-            updated_style = True
+            st.session_state.chat_built_size_has_style = True
 
         dims = _parse_dimensions_ft(raw)
         if dims is not None:
             w, l = dims
             st.session_state.width_ft = w
             st.session_state.length_ft = l
-            updated_dims = True
+            st.session_state.chat_built_size_has_dims = True
 
-        if updated_style and not updated_dims:
-            _chat_add(role="assistant", tag="ack:built_size_style_only", content=f"Got it — **{st.session_state.demo_style}**.")
-            _chat_add(role="assistant", tag="need:size", content="What size in feet? Example: **12x21**. (Type **/hint** for examples.)")
+        has_style = bool(st.session_state.get("chat_built_size_has_style"))
+        has_dims = bool(st.session_state.get("chat_built_size_has_dims"))
+
+        # Nothing parsed: show a gentle nudge.
+        if style is None and dims is None:
+            _chat_add(
+                role="assistant",
+                content=(
+                    "I didn’t recognize that as a valid **style** or **size**.\n\n"
+                    "Try **Regular 12x21**, **A-Frame 12x21**, or type **/hint**."
+                ),
+            )
             st.rerun()
 
-        if updated_dims and not updated_style:
+        # We require both style + size to be explicitly provided (not just defaults).
+        if not has_style:
+            if dims is not None and (int(st.session_state.width_ft) != prev_w or int(st.session_state.length_ft) != prev_l):
+                _chat_add(role="assistant", content=f"Got it — **{int(st.session_state.width_ft)}x{int(st.session_state.length_ft)} ft**.")
             _chat_add(
                 role="assistant",
-                tag="ack:built_size_dims_only",
-                content=f"Got it — **{int(st.session_state.width_ft)}x{int(st.session_state.length_ft)} ft**.",
-            )
-            _chat_add(
-                role="assistant",
-                tag="need:style",
                 content="Which style? **Regular**, **A-Frame Horizontal**, or **A-Frame Vertical**. (Type **/hint**.)",
             )
             st.rerun()
 
-        if updated_style or updated_dims:
-            style_now = str(st.session_state.get("demo_style") or "")
-            width_now = int(st.session_state.get("width_ft") or 0)
-            length_now = int(st.session_state.get("length_ft") or 0)
-            allowed_lengths = [20, 25, 30, 35] if style_now == "A-Frame (Vertical)" else [21, 26, 31, 36]
-
-            suggested_w = width_now if width_now in set(book.allowed_widths_ft) else _next_size_up(width_now, list(book.allowed_widths_ft))
-            suggested_l = length_now if length_now in set(allowed_lengths) else _next_size_up(length_now, allowed_lengths)
-
-            if suggested_w is not None and suggested_l is not None and (suggested_w != width_now or suggested_l != length_now):
-                st.session_state["chat_pending_suggestion"] = {
-                    "kind": "built_size",
-                    "suggested": {"width_ft": int(suggested_w), "length_ft": int(suggested_l)},
-                }
-                _chat_add(
-                    role="assistant",
-                    tag="suggest:built_size",
-                    content=(
-                        "Per manufacturer rule, we price at the **next size up** when a size isn’t listed.\n\n"
-                        f"Suggested priced size: **{int(suggested_w)}x{int(suggested_l)} ft**.\n\n"
-                        "Type **/apply** to use that, or **/cancel** to keep what you typed."
-                    ),
-                )
-                st.rerun()
-
-            can_advance, reason = _chat_can_advance_step(st.session_state, step_key, book)
-            if can_advance:
-                _chat_add(
-                    role="assistant",
-                    tag="ack:built_size_complete",
-                    content=(
-                        f"OK — you chose **{st.session_state.demo_style}**, "
-                        f"**{int(st.session_state.width_ft)}x{int(st.session_state.length_ft)} ft**."
-                    ),
-                )
-                next_idx = min(max_step_index, step_index + 1)
-                st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-                st.session_state.wizard_step = next_idx
-                st.rerun()
-            _chat_add(role="assistant", tag="help:built_size_incomplete", content=reason)
+        if not has_dims:
+            if style is not None and str(st.session_state.demo_style) != prev_style:
+                _chat_add(role="assistant", content=f"Got it — **{st.session_state.demo_style}**.")
+            _chat_add(role="assistant", content="What size in feet? Example: **12x21**. (Type **/hint** for examples.)")
             st.rerun()
 
-        _chat_add(
-            role="assistant",
-            tag="help:built_size",
-            content=(
-                "I didn’t recognize that as a valid size/style.\n\n"
-                "Try **A-Frame 12x21** or type **/hint**."
-            ),
-        )
+        style_now = str(st.session_state.get("demo_style") or "")
+        width_now = int(st.session_state.get("width_ft") or 0)
+        length_now = int(st.session_state.get("length_ft") or 0)
+        allowed_lengths = [20, 25, 30, 35] if style_now == "A-Frame (Vertical)" else [21, 26, 31, 36]
+
+        suggested_w = width_now if width_now in set(book.allowed_widths_ft) else _next_size_up(width_now, list(book.allowed_widths_ft))
+        suggested_l = length_now if length_now in set(allowed_lengths) else _next_size_up(length_now, allowed_lengths)
+
+        if suggested_w is not None and suggested_l is not None and (suggested_w != width_now or suggested_l != length_now):
+            st.session_state["chat_pending_suggestion"] = {
+                "kind": "built_size",
+                "suggested": {"width_ft": int(suggested_w), "length_ft": int(suggested_l)},
+            }
+            _chat_add(
+                role="assistant",
+                content=(
+                    "Per manufacturer rule, we price at the **next size up** when a size isn’t listed.\n\n"
+                    f"Suggested priced size: **{int(suggested_w)}x{int(suggested_l)} ft**.\n\n"
+                    "Type **/apply** to use that, or **/cancel** to keep what you typed."
+                ),
+            )
+            st.rerun()
+
+        can_advance, reason = _chat_can_advance_step(st.session_state, step_key, book)
+        if can_advance:
+            _chat_add(
+                role="assistant",
+                content=(
+                    f"OK — you chose **{st.session_state.demo_style}**, "
+                    f"**{int(st.session_state.width_ft)}x{int(st.session_state.length_ft)} ft**."
+                ),
+            )
+            next_idx = min(max_step_index, step_index + 1)
+            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state.wizard_step = next_idx
+            st.rerun()
+        _chat_add(role="assistant", content=reason)
         st.rerun()
 
     if step_key == "leg_height":
@@ -2547,6 +2582,10 @@ def _reset_state(book: PriceBook) -> None:
     st.session_state.pop("wizard_checkpoints", None)
     st.session_state.pop("_shadow_state", None)
     st.session_state.pop("_pending_restore_step", None)
+    st.session_state.pop("chat_pending_suggestion", None)
+    st.session_state.pop("chat_last_auto_advance", None)
+    st.session_state.pop("chat_built_size_has_style", None)
+    st.session_state.pop("chat_built_size_has_dims", None)
     # Clear any per-option placement keys.
     for k in list(st.session_state.keys()):
         if isinstance(k, str) and k.startswith("placement_"):
