@@ -364,27 +364,27 @@ _CHAT_ASSISTANT_MESSAGE_DELAY_MS = 250
 
 def _init_lead_state() -> None:
     if "lead_name" not in st.session_state:
-        st.session_state.lead_name = ""
+        st.session_state["lead_name"] = ""
     if "lead_email" not in st.session_state:
-        st.session_state.lead_email = ""
+        st.session_state["lead_email"] = ""
     if "lead_captured" not in st.session_state:
-        st.session_state.lead_captured = False
+        st.session_state["lead_captured"] = False
     if "lead_saved_quote_id" not in st.session_state:
-        st.session_state.lead_saved_quote_id = None
+        st.session_state["lead_saved_quote_id"] = None
     if "chat_messages" not in st.session_state:
-        st.session_state.chat_messages = []
+        st.session_state["chat_messages"] = []
     if "chat_last_scrolled_at_ms" not in st.session_state:
-        st.session_state.chat_last_scrolled_at_ms = 0
+        st.session_state["chat_last_scrolled_at_ms"] = 0
     if "chat_last_visible_at_ms" not in st.session_state:
-        st.session_state.chat_last_visible_at_ms = 0
+        st.session_state["chat_last_visible_at_ms"] = 0
     if "chat_last_prompted_step" not in st.session_state:
-        st.session_state.chat_last_prompted_step = None
+        st.session_state["chat_last_prompted_step"] = None
     if "chat_prompt_seq" not in st.session_state:
-        st.session_state.chat_prompt_seq = 1
+        st.session_state["chat_prompt_seq"] = 1
     if "chat_built_size_has_style" not in st.session_state:
-        st.session_state.chat_built_size_has_style = False
+        st.session_state["chat_built_size_has_style"] = False
     if "chat_built_size_has_dims" not in st.session_state:
-        st.session_state.chat_built_size_has_dims = False
+        st.session_state["chat_built_size_has_dims"] = False
     if "_lead_shadow" not in st.session_state:
         st.session_state["_lead_shadow"] = {"name": "", "email": "", "captured": False}
 
@@ -413,10 +413,10 @@ def _sync_lead_shadow() -> None:
     if live_captured and (not live_name or not live_email):
         # Restore if we have a better shadow value.
         if shadow_name and not live_name:
-            st.session_state.lead_name = shadow_name
+            st.session_state["lead_name"] = shadow_name
             restored = True
         if shadow_email and not live_email:
-            st.session_state.lead_email = shadow_email
+            st.session_state["lead_email"] = shadow_email
             restored = True
 
     # Update shadow from live whenever live is non-empty.
@@ -1245,17 +1245,17 @@ def _render_chat_action_card(*, step_key: str, step_index: int, max_step_index: 
 
             if st.button("Apply & continue", key="chat_action_apply_built_size", use_container_width=True):
                 _apply_chat_action_to_wizard(step_key=step_key)
-                st.session_state.chat_built_size_has_style = True
-                st.session_state.chat_built_size_has_dims = True
+                st.session_state["chat_built_size_has_style"] = True
+                st.session_state["chat_built_size_has_dims"] = True
                 _chat_add(
                     role="assistant",
                     tag="ack:built_size_action",
                     content=(
-                        f"Locked in: **{st.session_state.demo_style}**, "
-                        f"**{int(st.session_state.width_ft)}x{int(st.session_state.length_ft)} ft**."
+                        f"Locked in: **{str(st.session_state.get('demo_style') or '')}**, "
+                        f"**{int(st.session_state.get('width_ft') or 0)}x{int(st.session_state.get('length_ft') or 0)} ft**."
                     ),
                 )
-                st.session_state.wizard_step = min(max_step_index, step_index + 1)
+                st.session_state["wizard_step"] = min(max_step_index, step_index + 1)
                 st.rerun()
 
         elif step_key == "leg_height":
@@ -1732,13 +1732,16 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
                 w = suggested.get("width_ft")
                 l = suggested.get("length_ft")
                 if isinstance(w, int) and isinstance(l, int):
-                    st.session_state.width_ft = int(w)
-                    st.session_state.length_ft = int(l)
-                    st.session_state.chat_built_size_has_dims = True
+                    st.session_state["width_ft"] = int(w)
+                    st.session_state["length_ft"] = int(l)
+                    st.session_state["chat_built_size_has_dims"] = True
                     _chat_add(
                         role="assistant",
                         tag="ack:apply_suggestion",
-                        content=f"Applied: **{int(st.session_state.width_ft)}x{int(st.session_state.length_ft)} ft**.",
+                        content=(
+                            f"Applied: **{int(st.session_state.get('width_ft') or 0)}x"
+                            f"{int(st.session_state.get('length_ft') or 0)} ft**."
+                        ),
                     )
                     _clear_pending_chat_suggestion()
                     _chat_add(role="assistant", tag="coach:after_apply", content="When you’re ready, type **/next**.")
@@ -1771,9 +1774,9 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
     # Step-aware parsing so the user doesn't have to switch to the form.
     if step_key == "built_size":
         if "chat_built_size_has_style" not in st.session_state:
-            st.session_state.chat_built_size_has_style = False
+            st.session_state["chat_built_size_has_style"] = False
         if "chat_built_size_has_dims" not in st.session_state:
-            st.session_state.chat_built_size_has_dims = False
+            st.session_state["chat_built_size_has_dims"] = False
 
         _clear_pending_chat_suggestion()
         prev_style = str(st.session_state.get("demo_style") or "")
@@ -1782,15 +1785,15 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
 
         style = _parse_style_label(raw)
         if style is not None:
-            st.session_state.demo_style = style
-            st.session_state.chat_built_size_has_style = True
+            st.session_state["demo_style"] = style
+            st.session_state["chat_built_size_has_style"] = True
 
         dims = _parse_dimensions_ft(raw)
         if dims is not None:
             w, l = dims
-            st.session_state.width_ft = w
-            st.session_state.length_ft = l
-            st.session_state.chat_built_size_has_dims = True
+            st.session_state["width_ft"] = w
+            st.session_state["length_ft"] = l
+            st.session_state["chat_built_size_has_dims"] = True
 
         has_style = bool(st.session_state.get("chat_built_size_has_style"))
         has_dims = bool(st.session_state.get("chat_built_size_has_dims"))
@@ -1809,7 +1812,13 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
         # We require both style + size to be explicitly provided (not just defaults).
         if not has_style:
             if dims is not None and (int(st.session_state.width_ft) != prev_w or int(st.session_state.length_ft) != prev_l):
-                _chat_add(role="assistant", content=f"Got it — **{int(st.session_state.width_ft)}x{int(st.session_state.length_ft)} ft**.")
+                _chat_add(
+                    role="assistant",
+                    content=(
+                        f"Got it — **{int(st.session_state.get('width_ft') or 0)}x"
+                        f"{int(st.session_state.get('length_ft') or 0)} ft**."
+                    ),
+                )
             _chat_add(
                 role="assistant",
                 content="Which style? **Regular**, **A-Frame Horizontal**, or **A-Frame Vertical**. (Type **/hint**.)",
@@ -1850,13 +1859,13 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
             _chat_add(
                 role="assistant",
                 content=(
-                    f"OK — you chose **{st.session_state.demo_style}**, "
-                    f"**{int(st.session_state.width_ft)}x{int(st.session_state.length_ft)} ft**."
+                    f"OK — you chose **{str(st.session_state.get('demo_style') or '')}**, "
+                    f"**{int(st.session_state.get('width_ft') or 0)}x{int(st.session_state.get('length_ft') or 0)} ft**."
                 ),
             )
             next_idx = min(max_step_index, step_index + 1)
-            st.session_state.chat_last_auto_advance = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
-            st.session_state.wizard_step = next_idx
+            st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
+            st.session_state["wizard_step"] = next_idx
             st.rerun()
         _chat_add(role="assistant", content=reason)
         st.rerun()
