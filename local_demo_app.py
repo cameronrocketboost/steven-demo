@@ -2395,6 +2395,9 @@ def _wizard_step_key_for_index(step_index: int) -> str:
 def _chat_queue_step_prompt(step_key: str) -> None:
     if not bool(st.session_state.get("lead_captured")):
         return
+    # Reset per-step micro-state on step entry.
+    if step_key == "colors":
+        st.session_state.pop("chat_colors_assigned_fields", None)
     try:
         seq = int(st.session_state.get("chat_prompt_seq") or 1)
     except Exception:
@@ -2406,6 +2409,31 @@ def _chat_queue_step_prompt(step_key: str) -> None:
     )
     st.session_state["chat_last_prompted_step"] = step_key
     st.session_state["chat_prompt_seq"] = seq + 1
+
+
+def _colors_assigned_fields() -> set[str]:
+    """
+    Tracks which of roof/trim/sides the user has provided during the current Colors step.
+
+    This avoids prompting for fields that were set in a prior Colors message (e.g.
+    "roof tan, sides tan" then "trim white") and prevents confusing "what roof/sides?"
+    follow-ups after the user already set them.
+    """
+    raw = st.session_state.get("chat_colors_assigned_fields")
+    items: list[str] = []
+    if isinstance(raw, (list, tuple, set)):
+        for x in raw:
+            if isinstance(x, str):
+                items.append(x.strip())
+    out: set[str] = set()
+    for k in items:
+        if k in {"roof_color", "trim_color", "side_color"}:
+            out.add(k)
+    return out
+
+
+def _set_colors_assigned_fields(fields: set[str]) -> None:
+    st.session_state["chat_colors_assigned_fields"] = sorted(fields)
 
 
 def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_index: int, book: PriceBook) -> None:
@@ -3198,6 +3226,7 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
 
     if step_key == "colors":
         if tokens & {"skip", "none"}:
+            st.session_state.pop("chat_colors_assigned_fields", None)
             _chat_add(role="assistant", tag="ack:colors_skip", content="OK — keeping default colors.")
             next_idx = min(max_step_index, step_index + 1)
             st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
@@ -3208,12 +3237,18 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
         if assigns:
             for k, v in assigns.items():
                 st.session_state[k] = v
-            missing = [k for k in ("roof_color", "trim_color", "side_color") if k not in assigns]
+            assigned = _colors_assigned_fields()
+            for k in assigns.keys():
+                if k in {"roof_color", "trim_color", "side_color"}:
+                    assigned.add(k)
+            _set_colors_assigned_fields(assigned)
+            missing = [k for k in ("roof_color", "trim_color", "side_color") if k not in assigned]
             if not missing:
                 _chat_add(
                     role="assistant",
                     content=f"Nice — colors set (Roof **{st.session_state.get('roof_color')}**, Trim **{st.session_state.get('trim_color')}**, Sides **{st.session_state.get('side_color')}**).",
                 )
+                st.session_state.pop("chat_colors_assigned_fields", None)
                 next_idx = min(max_step_index, step_index + 1)
                 st.session_state["chat_last_auto_advance"] = {"from_step_index": int(step_index), "to_step_index": int(next_idx)}
                 st.session_state["wizard_step"] = next_idx

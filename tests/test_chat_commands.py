@@ -401,6 +401,63 @@ class TestChatCommands(unittest.TestCase):
             local_demo_app.st.session_state = original_session_state
             local_demo_app.st.rerun = original_rerun
 
+    def test_colors_partial_updates_remember_prior_fields_and_advance(self) -> None:
+        book = _load_demo_book()
+        steps = local_demo_app._wizard_steps()
+        max_step_index = len(steps) - 1
+
+        fake_session_state: _FakeSessionState = _FakeSessionState(
+            {
+                "lead_captured": True,
+                "chat_messages": [],
+                "chat_last_visible_at_ms": 0,
+                "chat_last_scrolled_at_ms": 0,
+                "wizard_step": 5,
+                "roof_color": "White",
+                "trim_color": "White",
+                "side_color": "White",
+            }
+        )
+
+        def _raise_rerun() -> None:
+            raise _StopRerun()
+
+        original_session_state = local_demo_app.st.session_state
+        original_rerun = local_demo_app.st.rerun
+        try:
+            local_demo_app.st.session_state = fake_session_state  # type: ignore[assignment]
+            local_demo_app.st.rerun = _raise_rerun  # type: ignore[assignment]
+
+            # First message sets roof + sides only; bot should remember those as "already provided".
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="roof tan, sides tan",
+                    step_key="colors",
+                    step_index=5,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertEqual(str(fake_session_state.get("roof_color") or ""), "Tan")
+            self.assertEqual(str(fake_session_state.get("side_color") or ""), "Tan")
+            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 5)
+
+            # Second message sets trim only; should now complete the color set and advance.
+            with self.assertRaises(_StopRerun):
+                local_demo_app._handle_chat_input(
+                    text="trim white",
+                    step_key="colors",
+                    step_index=5,
+                    max_step_index=max_step_index,
+                    book=book,
+                )
+            self.assertEqual(str(fake_session_state.get("roof_color") or ""), "Tan")
+            self.assertEqual(str(fake_session_state.get("trim_color") or ""), "White")
+            self.assertEqual(str(fake_session_state.get("side_color") or ""), "Tan")
+            self.assertEqual(int(fake_session_state.get("wizard_step") or -1), 6)
+        finally:
+            local_demo_app.st.session_state = original_session_state
+            local_demo_app.st.rerun = original_rerun
+
     def test_notes_no_does_not_navigate_back(self) -> None:
         book = _load_demo_book()
         steps = local_demo_app._wizard_steps()
