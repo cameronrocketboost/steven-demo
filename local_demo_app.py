@@ -355,6 +355,10 @@ class ChatMessage(TypedDict, total=False):
     content: str
     tag: str
     created_at_ms: int
+    visible_at_ms: int
+
+
+_CHAT_ASSISTANT_MESSAGE_DELAY_MS = 250
 
 
 def _init_lead_state() -> None:
@@ -370,6 +374,12 @@ def _init_lead_state() -> None:
         st.session_state.chat_messages = []
     if "chat_last_scrolled_at_ms" not in st.session_state:
         st.session_state.chat_last_scrolled_at_ms = 0
+    if "chat_last_visible_at_ms" not in st.session_state:
+        st.session_state.chat_last_visible_at_ms = 0
+    if "chat_last_prompted_step" not in st.session_state:
+        st.session_state.chat_last_prompted_step = None
+    if "chat_prompt_seq" not in st.session_state:
+        st.session_state.chat_prompt_seq = 1
     if "_lead_shadow" not in st.session_state:
         st.session_state["_lead_shadow"] = {"name": "", "email": "", "captured": False}
 
@@ -445,12 +455,14 @@ def _chat_messages() -> list[ChatMessage]:
                 and item.get("role") in ("assistant", "user")
                 and isinstance(item.get("content"), str)
             ):
+                created_at_ms = int(item.get("created_at_ms") or 0)
                 out.append(
                     {
                         "role": item["role"],  # type: ignore[index]
                         "content": item["content"],  # type: ignore[index]
                         "tag": item.get("tag"),
-                        "created_at_ms": int(item.get("created_at_ms") or 0),
+                        "created_at_ms": created_at_ms,
+                        "visible_at_ms": int(item.get("visible_at_ms") or created_at_ms),
                     }
                 )
         return out
@@ -468,16 +480,26 @@ def _chat_add(*, role: Literal["assistant", "user"], content: str, tag: Optional
         for m in messages:
             if m.get("role") == role and m.get("tag") == tag:
                 return
+    now_ms = int(time.time() * 1000)
+    visible_at_ms = now_ms
+    if role == "assistant":
+        try:
+            last_visible_at_ms = int(st.session_state.get("chat_last_visible_at_ms") or 0)
+        except Exception:
+            last_visible_at_ms = 0
+        visible_at_ms = max(now_ms, last_visible_at_ms + _CHAT_ASSISTANT_MESSAGE_DELAY_MS)
+        st.session_state["chat_last_visible_at_ms"] = visible_at_ms
     msg: ChatMessage = {
         "role": role,
         "content": clean,
-        "created_at_ms": int(time.time() * 1000),
+        "created_at_ms": now_ms,
+        "visible_at_ms": visible_at_ms,
     }
     if tag:
         msg["tag"] = tag
     messages.append(msg)
-    st.session_state.chat_messages = messages
-    st.session_state.chat_last_message_at_ms = msg["created_at_ms"]
+    st.session_state["chat_messages"] = messages
+    st.session_state["chat_last_message_at_ms"] = msg["created_at_ms"]
 
 
 def _parse_dimensions_ft(text: str) -> Optional[tuple[int, int]]:
@@ -881,6 +903,7 @@ def _chat_menu_for_step(step_key: str, book: PriceBook) -> str:
         "### Commands\n"
         "- **/hint** (show this menu)\n"
         "- **/next** (only advances once **style + size** are set)\n"
+        "- **continue** (same as /next)\n"
         f"{apply_cancel}"
     )
 
@@ -897,6 +920,7 @@ def _chat_menu_for_step(step_key: str, book: PriceBook) -> str:
         "### Commands\n"
         "- **/hint** (show this menu)\n"
         "- **/next**\n"
+        "- **continue** (same as /next)\n"
     )
 
     walk_in_labels = ["None"] + _available_accessory_labels(book, WALK_IN_DOOR_OPTIONS)
@@ -1515,16 +1539,76 @@ def _chat_prompt_for_current_step(step_key: str) -> str:
             "- Or use the **Guided controls** panel on the right\n"
             "- Type **/hint** to see the menu\n"
         ),
-        "leg_height": "Next: what **leg height**? (Example: **10 ft**)",
-        "openings_types": "Next: any **openings** to add (doors/windows/garage)? (Or say **none**)",
-        "openings_placement": "Optional: want to place openings by **wall + offset** for the drawing? (Or say **skip**)",
-        "options": "Any **options** to add? (Or say **none**)",
-        "colors": "Pick **colors** (or say **skip** to keep defaults).",
-        "notes": "Any notes I should include? (Or say **none**)",
+        "leg_height": (
+            "OK — you chose a size.\n\n"
+            "Next: choose **leg height**.\n\n"
+            "- Reply with something like **10 ft** (or just **10**)\n"
+            "- Or use the **Guided controls** panel on the right\n"
+            "- Type **go back** if you want to change the previous step\n"
+        ),
+        "openings_types": (
+            "OK — leg height saved.\n\n"
+            "Next: any **openings** to add (doors/windows/garage)?\n\n"
+            "- Say **none** if you don’t want any\n"
+            "- Examples: **roll-up 10x8**, **standard door**, **add 2 windows 24x36**\n"
+            "- Or use the **Guided controls** panel on the right\n"
+            "- Type **go back** if you want to change the previous step\n"
+        ),
+        "openings_placement": (
+            "Next (optional): place openings by **wall + offset** for the drawing.\n\n"
+            "- Examples: **door left 3**, **window right 5**, **garage front 0**\n"
+            "- Say **skip** to skip placement\n"
+            "- Or use the **Guided controls** panel on the right\n"
+            "- Type **go back** if you want to change the previous step\n"
+        ),
+        "options": (
+            "Next: any **options** to add?\n\n"
+            "- Say **none** if you don’t want any\n"
+            "- Or type one or more option codes (example: **JTRIM EXTRA_PANEL**)\n"
+            "- Or use the **Guided controls** panel on the right\n"
+            "- Type **go back** if you want to change the previous step\n"
+        ),
+        "colors": (
+            "Next: pick **colors**.\n\n"
+            "- Say **skip** to keep defaults\n"
+            "- Or use the **Guided controls** panel on the right\n"
+            "- Type **go back** if you want to change the previous step\n"
+        ),
+        "notes": (
+            "Next: any notes I should include?\n\n"
+            "- Say **none** if you don’t have any\n"
+            "- Or type the note text exactly as you want it saved\n"
+            "- Type **go back** if you want to change the previous step\n"
+        ),
         "quote": "Here’s the quote. Review it in the **Configuration** tab. Type **/hint** if you want the menu.",
         "done": "Thanks — a member of our team will be in contact. Type **/hint** if you want the menu.",
     }
     return prompts.get(step_key, "Type **/next** to continue, or **/hint** for the menu.")
+
+
+def _wizard_step_key_for_index(step_index: int) -> str:
+    steps = _wizard_steps()
+    if not steps:
+        return "built_size"
+    idx = int(step_index)
+    idx = max(0, min(idx, len(steps) - 1))
+    return str(steps[idx][1])
+
+
+def _chat_queue_step_prompt(step_key: str) -> None:
+    if not bool(st.session_state.get("lead_captured")):
+        return
+    try:
+        seq = int(st.session_state.get("chat_prompt_seq") or 1)
+    except Exception:
+        seq = 1
+    _chat_add(
+        role="assistant",
+        tag=f"prompt:{step_key}:{seq}",
+        content=_chat_prompt_for_current_step(step_key),
+    )
+    st.session_state["chat_last_prompted_step"] = step_key
+    st.session_state["chat_prompt_seq"] = seq + 1
 
 
 def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_index: int, book: PriceBook) -> None:
@@ -1592,6 +1676,7 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
             st.session_state.pop("chat_last_auto_advance", None)
             st.session_state.wizard_step = max(0, min(from_idx, max_step_index))
             _chat_add(role="assistant", tag="nav:go_back", content="No problem — going back so you can change that.")
+            _chat_queue_step_prompt(_wizard_step_key_for_index(int(st.session_state.wizard_step)))
             st.rerun()
 
     # If the user explicitly says "go back" at any time, go back a step (not advertised in /hint).
@@ -1599,6 +1684,7 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
         st.session_state.pop("chat_last_auto_advance", None)
         st.session_state.wizard_step = max(0, step_index - 1)
         _chat_add(role="assistant", tag="nav:go_back_any", content="Okay — back one step. Type your updated choice (or **/hint**).")
+        _chat_queue_step_prompt(_wizard_step_key_for_index(int(st.session_state.wizard_step)))
         st.rerun()
 
     # Clear any stale auto-advance marker once the user types something else.
@@ -1643,7 +1729,7 @@ def _handle_chat_input(*, text: str, step_key: str, step_index: int, max_step_in
         _chat_add(role="assistant", tag="no_suggestion_to_cancel", content="Nothing to cancel. Type **/hint** for help.")
         st.rerun()
 
-    if slash_cmd == "next" or bare_cmd == "next":
+    if slash_cmd in {"next", "continue"} or bare_cmd in {"next", "continue"}:
         can_advance, reason = _chat_can_advance_step(st.session_state, step_key, book)
         if not can_advance:
             _chat_add(role="assistant", tag=f"blocked_next:{step_key}", content=reason)
@@ -1993,26 +2079,30 @@ def _render_chat_panel(*, step_key: str, step_index: int, max_step_index: int, b
             ),
         )
 
-    # Ensure we always show a step prompt after lead capture.
+    # Show a step prompt on step entry (and when returning to a step).
     if bool(st.session_state.get("lead_captured")):
-        _chat_add(
-            role="assistant",
-            tag=f"prompt:{step_key}",
-            content=_chat_prompt_for_current_step(step_key),
-        )
+        last_prompted = st.session_state.get("chat_last_prompted_step")
+        if last_prompted != step_key:
+            _chat_queue_step_prompt(step_key)
 
     left, right = st.columns([3, 2], gap="large")
     with left:
         with st.container(height=560, border=True):
+            now_ms = int(time.time() * 1000)
+            next_visible_at_ms: Optional[int] = None
             for msg in _chat_messages():
                 role = msg.get("role")
                 content = msg.get("content")
+                visible_at_ms = int(msg.get("visible_at_ms") or msg.get("created_at_ms") or 0)
+                if visible_at_ms > now_ms:
+                    next_visible_at_ms = visible_at_ms if next_visible_at_ms is None else min(next_visible_at_ms, visible_at_ms)
+                    continue
                 if role in ("assistant", "user") and isinstance(content, str):
                     with st.chat_message(role):
                         st.markdown(content)
             st.markdown('<div id="chat-scroll-anchor"></div>', unsafe_allow_html=True)
 
-        user_text = st.chat_input(_chat_input_placeholder(step_key))
+        user_text = st.chat_input(_chat_input_placeholder(step_key), disabled=next_visible_at_ms is not None)
         if user_text is not None:
             _handle_chat_input(
                 text=user_text,
@@ -2029,6 +2119,10 @@ def _render_chat_panel(*, step_key: str, step_index: int, max_step_index: int, b
             st.info("After you enter name + email, I’ll show guided controls here.")
 
     _maybe_autoscroll_chat()
+    if next_visible_at_ms is not None:
+        wait_ms = max(0, int(next_visible_at_ms) - int(time.time() * 1000))
+        time.sleep(min(0.35, wait_ms / 1000.0))
+        st.rerun()
 
 
 # endregion lead capture + chat

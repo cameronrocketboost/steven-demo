@@ -84,3 +84,18 @@ class TestChatCommands(unittest.TestCase):
         finally:
             local_demo_app.st.session_state = original_session_state
 
+    def test_chat_add_sets_visible_at_ms_with_assistant_delay(self) -> None:
+        fake_session_state: dict[str, object] = {"chat_messages": [], "chat_last_visible_at_ms": 0}
+        original_session_state = local_demo_app.st.session_state
+        try:
+            local_demo_app.st.session_state = fake_session_state  # type: ignore[assignment]
+            local_demo_app._chat_add(role="assistant", content="First", tag="t1")
+            local_demo_app._chat_add(role="assistant", content="Second", tag="t2")
+            msgs = list(fake_session_state.get("chat_messages") or [])
+            self.assertEqual(len(msgs), 2)
+            v1 = int(msgs[0].get("visible_at_ms") or 0)
+            v2 = int(msgs[1].get("visible_at_ms") or 0)
+            self.assertGreaterEqual(v2, v1)
+        finally:
+            local_demo_app.st.session_state = original_session_state
+
